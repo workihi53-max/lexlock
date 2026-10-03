@@ -20,8 +20,10 @@
 ├── README.md                  [C: скрипты/упаковка]
 ├── pyproject.toml             [C]
 ├── .gitignore                 [C]
-├── install.sh                 [C]   первичная установка (интернет нужен 1 раз)
+├── install.sh                 [C]   первичная установка (ставит uv, Ollama, модель)
+├── bootstrap.sh               [C]   установка одной командой без git
 ├── run.sh                     [C]   запуск приложения (офлайн)
+├── .github/workflows/ci.yml   [C]   автопроверка тестов на GitHub Actions
 ├── vanya/                     [A: ядро]
 │   ├── __init__.py
 │   ├── config.py
@@ -29,6 +31,8 @@
 │   ├── llm.py
 │   ├── docs.py
 │   ├── extract.py
+│   ├── rag.py                    подбор релевантных фрагментов под запрос
+│   ├── cache.py                  дисковый кэш ответов LLM
 │   ├── tools.py
 │   ├── agent.py
 │   ├── scenarios.py
@@ -182,6 +186,12 @@ class Agent:
 
 ### 2.8 `vanya/scenarios.py`
 
+Перед отправкой в LLM документ режется не по первым `max_ctx_chars`, а через
+`rag.select_relevant(text, query, max_ctx_chars)` — подбор релевантных абзацев.
+Успешные ответы `find_risks`/`ask` кэшируются на диск (`cache.py`, ключ — хеш
+модели + текста документа + вопроса); повторный вызов мгновенный. При отключённом
+кэше (`VANYA_CACHE=0`) поведение прежнее, только без ускорения.
+
 ```python
 def fill_contract(source_filename: str | None = None, out_name: str | None = None) -> dict
     # source_filename = имя файла в workspace; None / "" / "-" → режим «пакет»:
@@ -190,9 +200,9 @@ def fill_contract(source_filename: str | None = None, out_name: str | None = Non
     # В результат добавить "package_mode": bool и "sources": [имена использованных файлов]
 def find_risks(filename: str) -> dict
     # {"ok": True, "summary": str, "risks": [{"punkt","risk","level","recommendation"}], "log":[...],
-    #  "fallback": bool}  — если LLM недоступна, отдаёт эвристический список и fallback=True
+    #  "fallback": bool, "cached": bool}  — если LLM недоступна, отдаёт эвристический список и fallback=True
 def ask(filename: str, question: str) -> dict
-    # {"ok": True, "answer": str}
+    # {"ok": True, "answer": str, "cached": bool}
 ```
 
 ### 2.9 Веб-API (`app/server.py`, FastAPI, uvicorn, порт из конфига)
@@ -202,7 +212,7 @@ def ask(filename: str, question: str) -> dict
 | GET | `/` | `static/index.html` |
 | GET | `/api/health` | `{"ok","model","model_installed","offline","ollama","workspace"}` |
 | GET | `/api/files` | список файлов workspace |
-| POST | `/api/upload` | multipart `files` → сохраняет в workspace → `{"saved":[...]}` |
+| POST | `/api/upload` | multipart `files` → сохраняет в workspace → `{"saved":[...]}`. Один файл ≤ 25 МБ, иначе 413 |
 | POST | `/api/scenario/fill` | `{"filename"?,"out_name"?}` → результат `scenarios.fill_contract`. Пустой/отсутствующий `filename` = режим «пакет» (все документы) |
 | POST | `/api/scenario/risks` | `{"filename"}` → `scenarios.find_risks` |
 | POST | `/api/scenario/ask` | `{"filename","question"}` → `scenarios.ask` |
@@ -214,11 +224,12 @@ def ask(filename: str, question: str) -> dict
 
 ### 2.10 Скрипты
 
-- `install.sh` — проверка ОЗУ (`scripts/check_ram.py`), `uv venv --python 3.12 .venv`,
-  `uv pip install -e .`, проверка `ollama`, `ollama pull $VANYA_MODEL` (можно `--skip-model`),
-  генерация шаблона/сэмплов. Идемпотентен.
+- `install.sh` — сам ставит `uv` и Ollama, если их нет (macOS: Homebrew/Ollama.app,
+  Linux: официальный скрипт), затем `uv venv --python 3.12 .venv`, `uv pip install -e .`,
+  проверка ОЗУ (`scripts/check_ram.py`), `ollama pull $VANYA_MODEL` (можно `--skip-model`),
+  генерация шаблона/сэмплов. Идемпотентен. `bootstrap.sh` — установка одной командой без git.
 - `run.sh` — активирует venv, `VANYA_OFFLINE=1` по умолчанию, стартует `python -m app.server`,
-  печатает URL. Флаг `--no-offline` для отладки.
+  печатает URL и открывает браузер. Флаги `--no-offline` и `--no-browser`.
 - `scripts/check_ram.py` — печатает ОЗУ/swap/диск/ядра, предупреждает при <3 ГБ свободно,
   возвращает 0/1 (1 — рискованно для запуска модели).
 - `scripts/make_template.py` — создаёт `templates/dogovor_template.docx` (договор оказания

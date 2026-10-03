@@ -186,3 +186,56 @@ def test_ask_llm_failure_returns_error(tmp_path, monkeypatch):
     result = scenarios.ask("dog.txt", "какой срок оплаты?")
     assert result["ok"] is False
     assert "error" in result
+
+
+class _CountingRiskLLM:
+    """Успешный json_chat; считает вызовы, чтобы проверить кэш."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def json_chat(self, messages, schema_hint=""):
+        self.calls += 1
+        return {
+            "summary": "ок",
+            "risks": [
+                {"punkt": "1", "risk": "риск", "level": "низкий",
+                 "recommendation": "проверить"}
+            ],
+        }
+
+
+def test_find_risks_cached_on_second_call(tmp_path, monkeypatch):
+    ws = _ws(tmp_path, monkeypatch)
+    (ws / "dog.txt").write_text("Договор про неустойку.", encoding="utf-8")
+    fake = _CountingRiskLLM()
+    monkeypatch.setattr(scenarios, "LLM", lambda config=None: fake)
+
+    first = scenarios.find_risks("dog.txt")
+    assert first["cached"] is False
+    second = scenarios.find_risks("dog.txt")
+    assert second["cached"] is True
+    assert second["risks"] == first["risks"]
+    assert fake.calls == 1  # модель вызвана один раз
+
+
+class _CountingAskLLM:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def chat(self, messages, tools=None):
+        self.calls += 1
+        return ChatResult(content="Сумма — 100 000 ₽", tool_calls=[])
+
+
+def test_ask_cached_on_second_call(tmp_path, monkeypatch):
+    ws = _ws(tmp_path, monkeypatch)
+    (ws / "dog.txt").write_text("Договор на 100 000 рублей.", encoding="utf-8")
+    fake = _CountingAskLLM()
+    monkeypatch.setattr(scenarios, "LLM", lambda config=None: fake)
+
+    first = scenarios.ask("dog.txt", "какая сумма?")
+    assert first["ok"] is True and first["cached"] is False
+    second = scenarios.ask("dog.txt", "какая сумма?")
+    assert second["cached"] is True
+    assert fake.calls == 1

@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from . import docs, extract, prompts
+from . import cache, docs, extract, prompts, rag
 from .config import TEMPLATES_DIR, load_config
 from .llm import LLM, LLMError
 
@@ -168,7 +168,13 @@ def find_risks(filename: str) -> dict:
             "fallback": True,
         }
 
-    snippet = text[: cfg.max_ctx_chars]
+    snippet = rag.select_relevant(text, prompts.RISK_QUERY, cfg.max_ctx_chars)
+    key = cache.make_key(cfg.model, "risks", text, str(cfg.max_ctx_chars))
+    cached = cache.get(cfg.workspace, key)
+    if cached is not None:
+        log.append("Риски взяты из кэша")
+        return {**cached, "log": log, "cached": True}
+
     llm = LLM(cfg)
     messages = [
         {"role": "system", "content": prompts.RISK_SYSTEM_PROMPT},
@@ -180,14 +186,10 @@ def find_risks(filename: str) -> dict:
         summary = data.get("summary", "") if isinstance(data, dict) else ""
         if not risks:
             raise LLMError("Модель не вернула список рисков")
+        payload = {"ok": True, "summary": summary, "risks": risks, "fallback": False}
+        cache.put(cfg.workspace, key, payload)
         log.append("Риски получены от модели")
-        return {
-            "ok": True,
-            "summary": summary,
-            "risks": risks,
-            "log": log,
-            "fallback": False,
-        }
+        return {**payload, "log": log, "cached": False}
     except LLMError as exc:
         log.append(f"Модель недоступна, использую эвристику: {exc}")
         return {
@@ -196,6 +198,7 @@ def find_risks(filename: str) -> dict:
             "risks": _heuristic_risks(text),
             "log": log,
             "fallback": True,
+            "cached": False,
         }
 
 
@@ -207,7 +210,12 @@ def ask(filename: str, question: str) -> dict:
     except Exception as exc:
         return {"ok": False, "error": f"Не удалось прочитать документ: {exc}"}
 
-    snippet = text[: cfg.max_ctx_chars]
+    snippet = rag.select_relevant(text, question, cfg.max_ctx_chars)
+    key = cache.make_key(cfg.model, "ask", text, question)
+    cached = cache.get(cfg.workspace, key)
+    if cached is not None:
+        return {**cached, "cached": True}
+
     llm = LLM(cfg)
     messages = [
         {"role": "system", "content": prompts.ASK_SYSTEM_PROMPT},
@@ -217,4 +225,6 @@ def ask(filename: str, question: str) -> dict:
         answer = llm.chat(messages).content
     except LLMError as exc:
         return {"ok": False, "error": str(exc)}
-    return {"ok": True, "answer": answer}
+    result = {"ok": True, "answer": answer}
+    cache.put(cfg.workspace, key, result)
+    return {**result, "cached": False}

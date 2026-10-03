@@ -128,6 +128,15 @@ def test_upload_missing_field_is_rejected(client):
     assert r.status_code == 422
 
 
+def test_upload_too_large_is_413_and_not_saved(client, cfg, monkeypatch):
+    monkeypatch.setattr(server, "MAX_UPLOAD_BYTES", 5)
+    r = client.post("/api/upload",
+                    files=[("files", ("big.txt", b"123456", "text/plain"))])
+    assert r.status_code == 413
+    assert "big.txt" in r.json()["detail"]
+    assert not (cfg.workspace / "big.txt").exists()
+
+
 def test_download_existing_file(client, cfg):
     (cfg.workspace / "doc.txt").write_text("содержимое", encoding="utf-8")
     r = client.get("/api/download/doc.txt")

@@ -30,6 +30,9 @@ from vanya import scenarios as vanya_scenarios
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 
+# Максимальный размер одного загружаемого файла (защита от забивания диска).
+MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+
 
 # --- модели запросов (pydantic v2) -------------------------------------------
 
@@ -149,7 +152,7 @@ def create_app(config: Any | None = None) -> FastAPI:
     async def upload(files: list[UploadFile] = File(...)):
         if not files:
             raise HTTPException(status_code=400, detail="файлы не переданы")
-        saved: list[str] = []
+        pending: list[tuple[Path, str, bytes]] = []
         for item in files:
             raw = (item.filename or "").replace("\\", "/")
             name = raw.rsplit("/", 1)[-1]
@@ -157,11 +160,21 @@ def create_app(config: Any | None = None) -> FastAPI:
                 dest = safe_workspace_path(workspace, name)
             except ValueError:
                 continue  # битые имена пропускаем, о корректных сообщаем
-            dest.write_bytes(await item.read())
-            saved.append(name)
-        if not saved:
+            data = await item.read()
+            if len(data) > MAX_UPLOAD_BYTES:
+                limit_mb = MAX_UPLOAD_BYTES // (1024 * 1024)
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"файл «{name}» больше {limit_mb} МБ",
+                )
+            pending.append((dest, name, data))
+        if not pending:
             raise HTTPException(status_code=400,
                                 detail="ни один файл не сохранён: некорректные имена")
+        saved: list[str] = []
+        for dest, name, data in pending:
+            dest.write_bytes(data)
+            saved.append(name)
         return {"saved": saved}
 
     @app.get("/api/download/{name}")

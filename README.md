@@ -85,6 +85,7 @@ cd ~/vanya-legal-vault
 | `VANYA_WORKSPACE` | `./workspace` | папка с документами |
 | `VANYA_PORT` | `8765` | порт веб-приложения |
 | `VANYA_OFFLINE` | `1` | жёсткий офлайн (блок не-loopback) |
+| `VANYA_CACHE` | `1` | кэш ответов LLM (`0` — отключить) |
 
 ## Структура репозитория
 
@@ -95,7 +96,8 @@ cd ~/vanya-legal-vault
 ├── bootstrap.sh         # установка одной командой (скачивает проект)
 ├── install.sh           # установка (ставит uv, Ollama, модель)
 ├── run.sh               # запуск (офлайн)
-├── vanya/               # ядро: конфиг, LLM, документы, извлечение, сценарии
+├── .github/workflows/   # CI: тесты на каждый push/PR
+├── vanya/               # ядро: конфиг, LLM, документы, извлечение, RAG, кэш, сценарии
 ├── app/                 # FastAPI-сервер и статика
 ├── scripts/
 │   ├── check_ram.py     # проверка ресурсов
