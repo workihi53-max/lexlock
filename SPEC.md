@@ -35,6 +35,8 @@
 │   ├── extract.py
 │   ├── rag.py                    подбор релевантных фрагментов под запрос
 │   ├── cache.py                  дисковый кэш ответов LLM
+│   ├── ocr.py                    локальный OCR (Tesseract, русский)
+│   ├── checklists.py             чек-листы договоров по типам
 │   ├── tools.py
 │   ├── agent.py
 │   ├── scenarios.py
@@ -208,6 +210,10 @@ def ask(filename: str, question: str) -> dict
 def export_risks(filename: str) -> dict
     # find_risks() + сохранение отчёта в .docx: {"ok": True, "out_path": str,
     #  "download_name": str, "risks": [...], "fallback": bool}
+def check_contract(filename: str, contract_type: str | None = None) -> dict
+    # проверка по чек-листу; тип определяется автоматически или задан вручную:
+    # {"ok": True, "contract_type": str, "items": [{"code","item","present"}],
+    #  "missing": [str], "score": int}  — детерминированно, без LLM
 ```
 
 Если задан `VANYA_LLM_EXTRACT=1`, `fill_contract` дозаполняет ненайденные поля
@@ -225,6 +231,7 @@ def export_risks(filename: str) -> dict
 | POST | `/api/scenario/fill` | `{"filename"?,"out_name"?}` → результат `scenarios.fill_contract`. Пустой/отсутствующий `filename` = режим «пакет» (все документы) |
 | POST | `/api/scenario/risks` | `{"filename"}` → `scenarios.find_risks` |
 | POST | `/api/scenario/export_risks` | `{"filename"}` → `scenarios.export_risks` (отчёт `.docx`) |
+| POST | `/api/scenario/checklist` | `{"filename","contract_type"?}` → `scenarios.check_contract` (чек-лист) |
 | POST | `/api/scenario/ask` | `{"filename","question"}` → `scenarios.ask` |
 | POST | `/api/chat` | SSE-поток `Event` из `Agent.run` (JSON-строки, `data: {...}\n\n`) |
 | GET | `/api/download/{name}` | отдаёт файл из workspace |
@@ -252,8 +259,9 @@ def export_risks(filename: str) -> dict
 
 ## 3. Общие требования
 
-- Python 3.12 (venv), зависимости: `fastapi`, `uvicorn`, `httpx`, `python-docx`, `pypdf`,
-  `python-multipart`, `pytest`. Никаких тяжёлых ML-библиотек (без torch/transformers).
+| Python 3.12 (venv), зависимости: `fastapi`, `uvicorn`, `httpx`, `python-docx`, `pypdf`,
+  `python-multipart`, `pytest`. OCR — `pymupdf` (extra `[ocr]`) и системный Tesseract с
+  языком `rus`. Никаких тяжёлых ML-библиотек (без torch/transformers).
 - Полный набор зависимостей ≤ 150 МБ.
 - Никаких обращений в интернет из кода приложения. Только `127.0.0.1`.
 - Строки для пользователя — русские, короткие, без эмодзи в служебных сообщениях.

@@ -14,18 +14,21 @@ VENV="$ROOT/.venv"
 MODEL="qwen2.5:3b"
 MODEL_EXPLICIT=0
 SKIP_MODEL=0
+NO_OCR=0
 OLLAMA_BIN=""
 
 usage() {
-    echo "Использование: ./install.sh [--skip-model] [--model ИМЯ] [-h]"
+    echo "Использование: ./install.sh [--skip-model] [--no-ocr] [--model ИМЯ] [-h]"
     echo "  --skip-model   не скачивать модель Ollama"
-    echo "  --model ИМЯ    модель Ollama (по умолчанию qwen2.5:3b)"
+    echo "  --no-ocr       не ставить OCR (Tesseract + PyMuPDF)"
+    echo "  --model ИМЯ    модель Ollama (по умолчанию подбирается по ОЗУ)"
     exit 1
 }
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --skip-model) SKIP_MODEL=1; shift ;;
+        --no-ocr) NO_OCR=1; shift ;;
         --model) MODEL="${2:?--model требует имя модели}"; MODEL_EXPLICIT=1; shift 2 ;;
         -h|--help) usage ;;
         *) echo "Неизвестный флаг: $1" >&2; usage ;;
@@ -58,9 +61,23 @@ find_ollama() {
     return 1
 }
 
-echo "==> Проверка окружения ($OS)"
+# Ищет бинарник tesseract, включая установку через conda/uv в ~/.local/ocr.
+find_tesseract() {
+    if command -v tesseract >/dev/null 2>&1; then
+        command -v tesseract; return 0
+    fi
+    for candidate in \
+        "$HOME/.local/ocr/bin/tesseract" \
+        /opt/homebrew/bin/tesseract /usr/local/bin/tesseract; do
+        if [ -x "$candidate" ]; then
+            echo "$candidate"; return 0
+        fi
+    done
+    return 1
+}
 
 # --- uv: ставим автоматически, если нет -------------------------------------
+echo "==> Проверка окружения ($OS)"
 add_local_paths
 if ! command -v uv >/dev/null 2>&1; then
     echo "==> uv не найден — устанавливаю (https://astral.sh/uv)"
@@ -129,7 +146,28 @@ if [ ! -x "$VENV/bin/python" ]; then
 fi
 
 echo "==> Установка зависимостей"
-uv pip install --python "$VENV/bin/python" -e "$ROOT"
+if [ "$NO_OCR" -eq 1 ]; then
+    uv pip install --python "$VENV/bin/python" -e "$ROOT"
+else
+    uv pip install --python "$VENV/bin/python" -e "$ROOT[ocr]"
+fi
+
+# --- OCR: Tesseract + русский язык (по умолчанию) ---------------------------
+if [ "$NO_OCR" -eq 0 ]; then
+    if command -v tesseract >/dev/null 2>&1 || find_tesseract >/dev/null 2>&1; then
+        echo "    OCR: Tesseract найден"
+    elif [ "$OS" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
+        echo "==> Ставлю OCR: tesseract + русский (brew)"
+        brew install tesseract tesseract-lang || \
+            echo "    Предупреждение: не удалось поставить Tesseract через brew." >&2
+    elif [ "$OS" = "Linux" ] && command -v apt-get >/dev/null 2>&1; then
+        echo "==> Ставлю OCR: tesseract-ocr + русский (apt)"
+        sudo apt-get update -qq && sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-rus || \
+            echo "    Предупреждение: не удалось поставить Tesseract." >&2
+    else
+        echo "    OCR: Tesseract не найден. Установите вручную (см. packaging/README.md)." >&2
+    fi
+fi
 
 # Визард модели: если --model не задан, выбираем модель по свободной ОЗУ.
 if [ "$MODEL_EXPLICIT" -eq 0 ]; then

@@ -50,6 +50,11 @@ class AskRequest(BaseModel):
     question: str
 
 
+class ChecklistRequest(BaseModel):
+    filename: str
+    contract_type: str | None = None
+
+
 class ChatRequest(BaseModel):
     message: str
     history: list[dict] | None = None
@@ -227,6 +232,14 @@ def create_app(config: Any | None = None) -> FastAPI:
             raise HTTPException(status_code=400, detail="вопрос пустой")
         try:
             return vanya_scenarios.ask(req.filename, req.question)
+        except Exception as exc:
+            raise _scenario_error(str(exc)) from exc
+
+    @app.post("/api/scenario/checklist")
+    def scenario_checklist(req: ChecklistRequest):
+        _checked_path(workspace, req.filename)
+        try:
+            return vanya_scenarios.check_contract(req.filename, req.contract_type)
         except Exception as exc:
             raise _scenario_error(str(exc)) from exc
 

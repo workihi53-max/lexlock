@@ -398,6 +398,25 @@
     </section>
 
     <section class="card">
+      <h2>Чек-лист договора</h2>
+      <p class="desc">Проверяет договор по обязательным условиям выбранного типа. Тип определяется автоматически или задаётся вручную.</p>
+      <p class="selected-line" id="sel-checklist"></p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <select id="checklist-type" style="padding:8px 10px;border-radius:8px">
+          <option value="">тип: авто</option>
+          <option value="услуги">услуги</option>
+          <option value="поставка">поставка</option>
+          <option value="аренда">аренда</option>
+          <option value="подряд">подряд</option>
+          <option value="заём">заём</option>
+          <option value="конфиденциальность">конфиденциальность</option>
+        </select>
+        <button id="btn-checklist">Проверить чек-лист</button>
+      </div>
+      <div class="result" id="checklist-result"></div>
+    </section>
+
+    <section class="card">
       <h2>Спросить по документу</h2>
       <p class="desc">Задайте вопрос по содержимому выбранного документа — Ваня ответит на русском.</p>
       <p class="selected-line" id="sel-ask"></p>
@@ -520,6 +539,7 @@ function updateSelectedLines() {
     : "Документ не выбран — «Заполнить договор» работает по выбранному файлу";
   $("sel-fill").innerHTML = txt;
   $("sel-risks").innerHTML = txt;
+  $("sel-checklist").innerHTML = txt;
   $("sel-ask").innerHTML = txt;
   $("btn-fill").disabled = !state.selected;
 }
@@ -704,9 +724,25 @@ function renderAsk(data, out) {
   out.innerHTML = '<div class="answer">' + esc(data.answer) + "</div>";
 }
 
+function renderChecklist(data, out) {
+  if (!data.items || !data.items.length) {
+    showError(out, data.error || "Не удалось построить чек-лист.");
+    return;
+  }
+  let html = '<div class="answer">Тип договора: ' + esc(data.contract_type) +
+    " · выполнено " + esc(String(data.score)) + "%</div>";
+  for (const item of data.items) {
+    html += '<div class="risk-item l-' + (item.present ? "low" : "high") + '">' +
+      '<div class="r-head">' + (item.present ? "✓" : "✗") + " " +
+      esc(item.item) + "</div></div>";
+  }
+  out.innerHTML = html;
+}
+
 $("btn-fill").dataset.label = "Заполнить договор";
 $("btn-fill-package").dataset.label = "Заполнить по всему пакету";
 $("btn-risks").dataset.label = "Найти риски";
+$("btn-checklist").dataset.label = "Проверить чек-лист";
 $("btn-ask").dataset.label = "Спросить";
 
 $("btn-fill").addEventListener("click", () =>
@@ -718,6 +754,13 @@ $("btn-fill-package").addEventListener("click", () =>
 $("btn-risks").addEventListener("click", () =>
   runScenario($("btn-risks"), "/api/scenario/risks", { filename: state.selected },
     renderRisks, $("risks-result"), true));
+$("btn-checklist").addEventListener("click", () => {
+  const body = { filename: state.selected };
+  const type = $("checklist-type").value;
+  if (type) body.contract_type = type;
+  runScenario($("btn-checklist"), "/api/scenario/checklist", body,
+    renderChecklist, $("checklist-result"), true);
+});
 $("btn-ask").addEventListener("click", () => {
   const q = $("ask-question").value.trim();
   if (!q) { showError($("ask-result"), "Введите вопрос."); return; }

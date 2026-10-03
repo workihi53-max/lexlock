@@ -52,8 +52,30 @@ run.bat
 iscc packaging\windows\installer.iss
 ```
 
+## OCR
+
+OCR включается автоматически install-скриптами: `install.ps1`/`install.sh` ставят
+Tesseract с русским языком и Python-extra `[ocr]` (PyMuPDF). Отключить: `./install.sh --no-ocr`.
+
+## Подпись файлов (code signing)
+
+Шаги подписи уже в `.github/workflows/release.yml` и запускаются, только если в
+репозитории заданы секреты. Без них собираются неподписанные файлы.
+
+**macOS** — секреты репозитория:
+`APPLE_CERT_P12` (base64 от .p12), `APPLE_CERT_PASSWORD`, `APPLE_ID`,
+`APPLE_TEAM_ID`, `APPLE_APP_PASSWORD` (app-specific password). Нужен сертификат
+«Developer ID Application» из Apple Developer Program.
+
+**Windows** — секреты: `WINDOWS_CERT_PFX_BASE64` (base64 от .pfx) и
+`WINDOWS_CERT_PASSWORD`. Нужен code-signing сертификат (EV или OV).
+
+Сертификаты — платные и выдаются на организацию; после их добавления в
+Settings → Secrets and variables → Actions подпись включится автоматически.
+
 ## Чего ещё нет
 
 - Установщики без интернета (модель и Ollama всё ещё скачиваются при первом запуске).
-- Код-подпись `.dmg`/`.exe` — сейчас предупреждения Gatekeeper/SmartScreen ожидаемы.
+- Настоящий `.app`/`.pkg` для macOS с нотаризацией (сейчас `.dmg` с launcher).
 - Единый бинарник с вшитым Python — сейчас Python ставит `uv` автоматически.
+

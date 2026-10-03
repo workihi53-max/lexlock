@@ -6,7 +6,7 @@ import os
 import re
 from pathlib import Path
 
-from . import cache, docs, extract, prompts, rag
+from . import cache, checklists, docs, extract, prompts, rag
 from .config import TEMPLATES_DIR, load_config
 from .llm import LLM, LLMError
 
@@ -298,4 +298,27 @@ def export_risks(filename: str) -> dict:
         "download_name": out_name,
         "risks": analysis.get("risks", []),
         "fallback": analysis.get("fallback", False),
+    }
+
+
+def check_contract(filename: str, contract_type: str | None = None) -> dict:
+    """Проверка договора по чек-листу. Тип определяется автоматически или задан."""
+    cfg = load_config()
+    try:
+        text = docs.read_document(cfg.workspace / filename)
+    except Exception as exc:
+        return {"ok": False, "error": f"Не удалось прочитать документ: {exc}"}
+    ctype = contract_type if contract_type in checklists.CHECKLISTS else None
+    if ctype is None:
+        ctype = checklists.detect_contract_type(text)
+    items = checklists.evaluate(text, ctype)
+    missing = [item["item"] for item in items if not item["present"]]
+    found = len(items) - len(missing)
+    score = round(found / len(items) * 100) if items else 0
+    return {
+        "ok": True,
+        "contract_type": ctype,
+        "items": items,
+        "missing": missing,
+        "score": score,
     }

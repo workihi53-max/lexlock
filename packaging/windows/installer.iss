@@ -7,7 +7,7 @@
 #define MyAppPublisher "Legal AI Vault"
 
 [Setup]
-AppId={{8F2B9C41-6D2A-4E7B-9C51-VANYA0000001}
+AppId={{8F2B9C41-6D2A-4E7B-9C51-000000000001}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}

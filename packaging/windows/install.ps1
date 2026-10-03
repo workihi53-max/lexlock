@@ -28,9 +28,19 @@ if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
     $env:Path = "$env:LOCALAPPDATA\Programs\Ollama;$env:Path"
 }
 
-# --- окружение Python ---
+# --- окружение Python (с OCR) ---
 if (-not (Test-Path ".venv\Scripts\python.exe")) { uv venv --python 3.12 .venv }
-uv pip install --python .venv\Scripts\python.exe -e .
+uv pip install --python .venv\Scripts\python.exe -e ".[ocr]"
+
+# --- OCR: Tesseract + русский ---
+if (-not (Get-Command tesseract -ErrorAction SilentlyContinue)) {
+    Write-Host "==> Устанавливаю Tesseract OCR"
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        winget install --id UB-Mannheim.TesseractOCR -e --accept-source-agreements --accept-package-agreements
+    } else {
+        Write-Host "    Установите Tesseract вручную: https://github.com/UB-Mannheim/tesseract/wiki" -ForegroundColor Yellow
+    }
+}
 
 # --- модель по объёму ОЗУ ---
 $ramGb = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 1)

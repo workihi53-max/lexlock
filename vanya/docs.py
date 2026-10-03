@@ -8,6 +8,8 @@ from pathlib import Path
 from docx import Document
 from pypdf import PdfReader
 
+from . import ocr
+
 TEXT_EXT = {".txt", ".md", ".csv", ".json"}
 _DOCX_PDF_EXT = {".docx", ".pdf"}
 _PLACEHOLDER_RE = re.compile(r"\{\{\s*([^{}]+?)\s*\}\}")
@@ -38,7 +40,7 @@ def _read_pdf(path: Path) -> str:
 
 
 def read_document(path: str | Path) -> str:
-    """Читает .txt/.md/.csv/.json/.docx/.pdf; иначе — ValueError."""
+    """Читает .txt/.md/.csv/.json/.docx/.pdf и изображения (OCR); иначе ValueError."""
     p = Path(path)
     ext = p.suffix.lower()
     if ext in TEXT_EXT:
@@ -46,7 +48,12 @@ def read_document(path: str | Path) -> str:
     if ext == ".docx":
         return _read_docx(p)
     if ext == ".pdf":
-        return _read_pdf(p)
+        text = _read_pdf(p)
+        if ocr.needs_ocr(text) and ocr.available():
+            return ocr.ocr_pdf(p)
+        return text
+    if ext in ocr.IMAGE_EXT:
+        return ocr.ocr_image(p)
     raise ValueError(f"Неподдерживаемый формат файла: {ext or 'без расширения'}")
 
 
@@ -60,7 +67,7 @@ def read_folder(folder: str | Path, limit_chars: int = 20000) -> str:
     for item in sorted(f.iterdir()):
         if not item.is_file():
             continue
-        if item.suffix.lower() not in (TEXT_EXT | _DOCX_PDF_EXT):
+        if item.suffix.lower() not in (TEXT_EXT | _DOCX_PDF_EXT | ocr.IMAGE_EXT):
             continue
         try:
             text = read_document(item)

@@ -55,6 +55,8 @@ Homebrew или Ollama.app; Linux: официальный скрипт), а не
 | `vanya/extract.py` | `FIELDS`, `extract_requisites()` — только регулярки, без LLM |
 | `vanya/rag.py` | Подбор релевантных абзацев под запрос (RAG-lite, стемминг корней) |
 | `vanya/cache.py` | Дисковый кэш ответов LLM (`.vanya_cache`, env `VANYA_CACHE=0` отключает) |
+| `vanya/ocr.py` | Локальный OCR (Tesseract, `rus`); сканы PDF через PyMuPDF |
+| `vanya/checklists.py` | Чек-листы договоров по типам, автоопределение типа |
 | `vanya/tools.py` | 6 инструментов агента, `tool_schemas()`, `dispatch()` |
 | `vanya/agent.py` | Цикл агента: `chat` → tool calls → наблюдения → ответ |
 | `vanya/scenarios.py` | Три сценария: `fill_contract`, `find_risks`, `ask` |
@@ -189,13 +191,16 @@ VANYA_WORKSPACE="$VANYA_WORKSPACE" .venv/bin/python -c \
 3. ✅ Кэш ответов по хешу модели/документа/вопроса (`cache.py`), повтор мгновенный.
 4. ✅ Экспорт отчёта о рисках в `.docx` (`export_risks`, кнопка «Экспорт в Word»).
 5. Чек-лист рисков по типам договоров вместо свободного рассуждения модели.
-6. OCR для PDF-сканов (сейчас PDF только с текстовым слоем).
+6. ✅ OCR для PDF-сканов и изображений: локальный Tesseract (`rus`), `ocr.py`,
+   `pymupdf` extra; если OCR нет — приложение работает как раньше.
 7. ✅ Визард модели: `check_ram.py --recommend` и авто-выбор в `install.sh`
    (`qwen2.5:1.5b` на слабой ОЗУ), выбор сохраняется в `.vanya_model`.
 8. Бенчмарк качества на русских юридических документах с фиксацией точности извлечения.
 9. ✅ Установщики: `.dmg` (macOS), AppImage (Linux), Inno Setup (Windows), автосборка
    по тегу `v*` в `release.yml`. Полностью офлайн-установка (без первого скачивания) — нет.
-10. Подпись и проверка обновлений для офлайн-канала из `docs/07`.
+10. ⏳ Подпись: шаги `codesign`/`notarytool` (macOS) и `signtool` (Windows) добавлены в
+    `release.yml` и включаются при заданных секретах-сертификатах. Нужны сами сертификаты.
+11. ✅ Чек-листы договоров по типам (`checklists.py`, endpoint, карточка в UI).
 
 ## Стиль кода
 
@@ -240,4 +245,16 @@ VANYA_WORKSPACE="$VANYA_WORKSPACE" .venv/bin/python -c \
 - 2026-10-03 — `packaging/`: `.dmg` (macOS, проверен локально), AppImage (Linux),
   PowerShell + Inno Setup (Windows). Автосборка по тегу `v*` в `release.yml`.
 - 2026-10-03 — тесты: +8 (export_risks, LLM-дозаполнение, recommend) → 132 зелёных.
+- 2026-10-03 — `vanya/ocr.py` + `docs.read_document`: локальный OCR Tesseract (`rus`)
+  для изображений и PDF-сканов через PyMuPDF (extra `[ocr]`). `install.sh` ставит
+  tesseract+русский (brew/apt) и extra `[ocr]`; флаг `--no-ocr` отключает.
+  Живая проверка: скан PDF «Аренда помещения / Арендная плата 50 000 рублей» распознан.
+- 2026-10-03 — `vanya/checklists.py`: чек-листы договоров (услуги, поставка, аренда,
+  подряд, заём, конфиденциальность), автоопределение типа; сценарий `check_contract`,
+  endpoint `/api/scenario/checklist`, карточка «Чек-лист договора» в интерфейсе.
+- 2026-10-03 — `release.yml`: условная подпись/нотаризация (Apple) и подпись Windows
+  (signtool) при наличии секретов; без сертификатов собираются неподписанные файлы.
+- 2026-10-03 — локально поставлен `git` 2.56 через micromamba (без Xcode), проект
+  переведён на обычные коммиты; `~/.local/git/bin` добавлен в PATH.
+- 2026-10-03 — тесты: +13 (ocr, checklists, endpoint) → 145 зелёных.
 

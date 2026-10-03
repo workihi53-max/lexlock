@@ -180,6 +180,7 @@ def test_scenario_rejects_traversal(client, monkeypatch):
         ("/api/scenario/fill", {"filename": "../../etc/passwd"}),
         ("/api/scenario/risks", {"filename": "../x"}),
         ("/api/scenario/export_risks", {"filename": "../x"}),
+        ("/api/scenario/checklist", {"filename": "../x"}),
         ("/api/scenario/ask", {"filename": "/etc/passwd", "question": "что тут?"}),
     ]:
         r = client.post(url, json=body)
@@ -276,6 +277,19 @@ def test_scenario_export_risks(client, monkeypatch):
     r = client.post("/api/scenario/export_risks", json={"filename": "a.txt"})
     assert r.status_code == 200
     assert r.json()["download_name"] == "a.txt_risks.docx"
+
+
+def test_scenario_checklist(client, monkeypatch):
+    monkeypatch.setattr(server, "vanya_scenarios", fake_scenarios(
+        check_contract=lambda filename, contract_type=None: {
+            "ok": True, "contract_type": "услуги", "score": 75,
+            "items": [{"code": "cena", "item": "цена", "present": True}],
+            "missing": [],
+        }))
+    r = client.post("/api/scenario/checklist", json={"filename": "a.txt"})
+    assert r.status_code == 200
+    assert r.json()["contract_type"] == "услуги"
+    assert r.json()["score"] == 75
 
 
 def test_scenario_ask_empty_question_400(client, monkeypatch):

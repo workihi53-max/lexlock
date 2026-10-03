@@ -21,6 +21,9 @@ dependencies = [
 dev = [
     "pytest>=8.0",
 ]
+ocr = [
+    "pymupdf>=1.24",
+]
 
 [tool.setuptools.packages.find]
 include = ["vanya*", "app*"]
