@@ -12,6 +12,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV="$ROOT/.venv"
 MODEL="qwen2.5:3b"
+MODEL_EXPLICIT=0
 SKIP_MODEL=0
 OLLAMA_BIN=""
 
@@ -25,7 +26,7 @@ usage() {
 while [ $# -gt 0 ]; do
     case "$1" in
         --skip-model) SKIP_MODEL=1; shift ;;
-        --model) MODEL="${2:?--model требует имя модели}"; shift 2 ;;
+        --model) MODEL="${2:?--model требует имя модели}"; MODEL_EXPLICIT=1; shift 2 ;;
         -h|--help) usage ;;
         *) echo "Неизвестный флаг: $1" >&2; usage ;;
     esac
@@ -129,6 +130,18 @@ fi
 
 echo "==> Установка зависимостей"
 uv pip install --python "$VENV/bin/python" -e "$ROOT"
+
+# Визард модели: если --model не задан, выбираем модель по свободной ОЗУ.
+if [ "$MODEL_EXPLICIT" -eq 0 ]; then
+    REC="$("$VENV/bin/python" "$ROOT/scripts/check_ram.py" --recommend 2>/dev/null || echo "$MODEL")"
+    if [ -n "$REC" ] && [ "$REC" != "$MODEL" ]; then
+        echo "==> Свободной ОЗУ мало — выбираю лёгкую модель $REC"
+        echo "    Переопределить: ./install.sh --model ИМЯ или VANYA_MODEL"
+    fi
+    MODEL="$REC"
+fi
+printf '%s' "$MODEL" > "$ROOT/.vanya_model"
+echo "    Модель: $MODEL"
 
 echo "==> Проверка ресурсов (предупреждение не останавливает установку)"
 if ! "$VENV/bin/python" "$ROOT/scripts/check_ram.py" --model "$MODEL"; then

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -65,6 +66,47 @@ _RISK_RULES: list[tuple[list[str], str, str, str, str]] = [
 ]
 
 
+def _llm_extract_enabled() -> bool:
+    """Дозаполнение реквизитов моделью — опционально (по умолчанию выключено)."""
+    return os.environ.get("VANYA_LLM_EXTRACT", "0").strip().lower() in {
+        "1", "true", "yes", "on"
+    }
+
+
+def _llm_fill_missing(cfg, text: str, found: dict, log: list[str]) -> list[str]:
+    """Просит модель заполнить ненайденные поля. Ошибки не роняют сценарий."""
+    missing = extract.missing_fields(found)
+    if not missing:
+        return []
+    try:
+        llm = LLM(cfg)
+        data = llm.json_chat(
+            [
+                {"role": "system", "content": prompts.EXTRACT_SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": (
+                        f"Нужные поля: {missing}\n\nТекст договора:\n\n"
+                        f"{text[: cfg.max_ctx_chars]}"
+                    ),
+                },
+            ],
+            schema_hint=prompts.extract_schema(missing),
+        )
+    except LLMError as exc:
+        log.append(f"Дозаполнение моделью недоступно: {exc}")
+        return []
+    filled: list[str] = []
+    for name in missing:
+        value = data.get(name) if isinstance(data, dict) else None
+        if isinstance(value, str) and value.strip():
+            found[name] = value.strip()
+            filled.append(name)
+    if filled:
+        log.append("Модель дозаполнила поля: " + ", ".join(filled))
+    return filled
+
+
 def fill_contract(source_filename: str | None = None, out_name: str | None = None) -> dict:
     """Детерминированный конвейер: чтение → извлечение → заполнение шаблона.
 
@@ -74,6 +116,7 @@ def fill_contract(source_filename: str | None = None, out_name: str | None = Non
     package_mode = source_filename in (None, "", "-")
     log = []
     sources: list[str] = []
+    model_fields: list[str] = []
     try:
         if package_mode:
             log.append("Режим «пакет»: читаю все документы рабочей папки")
@@ -90,12 +133,15 @@ def fill_contract(source_filename: str | None = None, out_name: str | None = Non
             "error": f"Не удалось прочитать источник: {exc}",
             "fields": {},
             "missing": list(extract.FIELDS),
+            "model_fields": model_fields,
             "log": log,
             "package_mode": package_mode,
             "sources": sources,
         }
 
     found = extract.extract_requisites(text)
+    if _llm_extract_enabled():
+        model_fields = _llm_fill_missing(cfg, text, found, log)
     missing = extract.missing_fields(found)
     log.append(f"Найдено реквизитов: {len(found)}")
 
@@ -107,6 +153,7 @@ def fill_contract(source_filename: str | None = None, out_name: str | None = Non
             "error": "Шаблон договора не найден",
             "fields": found,
             "missing": missing,
+            "model_fields": model_fields,
             "log": log,
             "package_mode": package_mode,
             "sources": sources,
@@ -122,6 +169,7 @@ def fill_contract(source_filename: str | None = None, out_name: str | None = Non
         "out_path": str(out_path),
         "fields": found,
         "missing": missing,
+        "model_fields": model_fields,
         "log": log,
         "package_mode": package_mode,
         "sources": sources,
@@ -228,3 +276,26 @@ def ask(filename: str, question: str) -> dict:
     result = {"ok": True, "answer": answer}
     cache.put(cfg.workspace, key, result)
     return {**result, "cached": False}
+
+
+def export_risks(filename: str) -> dict:
+    """Прогоняет анализ рисков и сохраняет отчёт в .docx рядом в workspace."""
+    analysis = find_risks(filename)
+    if not analysis.get("ok"):
+        return analysis
+    cfg = load_config()
+    out_name = Path(filename).stem + "_risks.docx"
+    out_path = cfg.workspace / out_name
+    docs.write_risk_report(
+        out_path,
+        filename,
+        str(analysis.get("summary", "")),
+        list(analysis.get("risks", [])),
+    )
+    return {
+        "ok": True,
+        "out_path": str(out_path),
+        "download_name": out_name,
+        "risks": analysis.get("risks", []),
+        "fallback": analysis.get("fallback", False),
+    }

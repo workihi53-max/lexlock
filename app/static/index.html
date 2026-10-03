@@ -606,6 +606,10 @@ function renderFill(data, out) {
   if (data.missing && data.missing.length) {
     html += '<div class="notice">Не найдены поля: ' + data.missing.map(esc).join(", ") + "</div>";
   }
+  if (data.model_fields && data.model_fields.length) {
+    html += '<div class="notice">Модель дозаполнила поля: ' +
+      data.model_fields.map(esc).join(", ") + "</div>";
+  }
   if (data.download_name) {
     html += '<a class="download-link" href="/api/download/' +
       encodeURIComponent(data.download_name) + '">Скачать договор</a>';
@@ -653,7 +657,43 @@ function renderRisks(data, out) {
       (r.recommendation ? '<div class="r-rec">Рекомендация: ' + esc(r.recommendation) + "</div>" : "") +
       "</div>";
   }
+  if (risks.length) {
+    html += '<button id="btn-export-risks" style="margin-top:12px">Экспорт в Word</button>';
+  }
   out.innerHTML = html;
+  const exportBtn = $("btn-export-risks");
+  if (exportBtn) exportBtn.addEventListener("click", () => exportRisksDocx(exportBtn));
+}
+
+async function exportRisksDocx(btn) {
+  const out = $("risks-result");
+  if (!requireSelected(out)) return;
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Готовлю…";
+  try {
+    const r = await api("/api/scenario/export_risks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filename: state.selected }),
+    });
+    const data = await r.json();
+    if (!data.download_name) {
+      showError(out, data.error || "Не удалось сохранить отчёт.");
+      return;
+    }
+    const a = document.createElement("a");
+    a.className = "download-link";
+    a.style.marginTop = "10px";
+    a.href = "/api/download/" + encodeURIComponent(data.download_name);
+    a.textContent = "Скачать отчёт о рисках (.docx)";
+    out.appendChild(a);
+  } catch (e) {
+    showError(out, e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
 }
 
 function renderAsk(data, out) {

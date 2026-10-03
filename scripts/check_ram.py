@@ -35,6 +35,11 @@ def estimate_model_ram(model: str) -> float:
     return MODEL_RAM_GB.get(key, max(1.0, float(m.group(1)) * 0.8))
 
 
+def recommend_model(free_gb: float) -> str:
+    """Подбирает модель по свободной ОЗУ: на слабых машинах — лёгкую 1.5b."""
+    return "qwen2.5:3b" if free_gb >= 5.0 else "qwen2.5:1.5b"
+
+
 def _read_meminfo() -> dict[str, int]:
     """Linux: разбирает /proc/meminfo (значения в кБ)."""
     vals: dict[str, int] = {}
@@ -138,9 +143,14 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Проверка ресурсов перед запуском модели")
     ap.add_argument("--model", default=DEFAULT_MODEL, help="имя модели Ollama (для оценки ОЗУ)")
     ap.add_argument("--json", action="store_true", help="вывод в формате JSON")
+    ap.add_argument("--recommend", action="store_true",
+                    help="напечатать рекомендованную модель по свободной ОЗУ и выйти")
     args = ap.parse_args()
 
     info = collect()
+    if args.recommend:
+        print(recommend_model(info["ram_free_gb"]))
+        return 0
     required = estimate_model_ram(args.model)
     text, ok = verdict(info["ram_free_gb"], required)
 

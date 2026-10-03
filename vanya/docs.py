@@ -127,6 +127,33 @@ def fill_docx(template: str | Path, values: dict[str, str], out_path: str | Path
     return out
 
 
+def write_risk_report(
+    out_path: str | Path,
+    source_name: str,
+    summary: str,
+    risks: list[dict],
+) -> Path:
+    """Сохраняет отчёт о рисках в .docx (заголовок, источник, список рисков)."""
+    doc = Document()
+    doc.add_heading("Отчёт о рисках договора", level=0)
+    doc.add_paragraph(f"Источник: {source_name}")
+    if summary:
+        doc.add_paragraph(summary)
+    for item in risks:
+        doc.add_heading(str(item.get("punkt") or "—"), level=2)
+        level = item.get("level")
+        if level:
+            doc.add_paragraph(f"Уровень риска: {level}")
+        if item.get("risk"):
+            doc.add_paragraph(str(item["risk"]))
+        if item.get("recommendation"):
+            doc.add_paragraph(f"Рекомендация: {item['recommendation']}")
+    p = Path(out_path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    doc.save(str(p))
+    return p
+
+
 def _collect_placeholders(paragraphs, found: list[str], seen: set[str]) -> None:
     for para in paragraphs:
         full = "".join(run.text for run in para.runs)

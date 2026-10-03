@@ -5,11 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from docx import Document
 
 from vanya.agent import Agent
 from vanya.config import Config
 from vanya.llm import LLM, ChatResult, LLMError, ToolCall
-from vanya import scenarios
+from vanya import docs, scenarios
 
 
 def _cfg() -> Config:
@@ -239,3 +240,75 @@ def test_ask_cached_on_second_call(tmp_path, monkeypatch):
     second = scenarios.ask("dog.txt", "какая сумма?")
     assert second["cached"] is True
     assert fake.calls == 1
+
+
+# --- экспорт отчёта о рисках в .docx ---
+
+
+def test_export_risks_writes_docx(tmp_path, monkeypatch):
+    ws = _ws(tmp_path, monkeypatch)
+    (ws / "dog.txt").write_text(
+        "Договор со штрафом и автопролонгацией.", encoding="utf-8"
+    )
+    monkeypatch.setattr(scenarios, "LLM", _FailingLLM)  # эвристика, без модели
+    result = scenarios.export_risks("dog.txt")
+    assert result["ok"] is True
+    out = Path(result["out_path"])
+    assert out.exists() and out.suffix == ".docx"
+    text = docs.read_document(out)
+    assert "Отчёт о рисках" in text
+    assert "штраф" in text.lower()
+
+
+# --- дозаполнение реквизитов моделью ---
+
+
+class _ExtractLLM:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def json_chat(self, messages, schema_hint=""):
+        self.calls += 1
+        return {"inn": "7701234567", "bik": ""}
+
+
+def _tiny_template(tmp_path, monkeypatch):
+    tpl_dir = tmp_path / "tpl"
+    tpl_dir.mkdir()
+    doc = Document()
+    doc.add_paragraph("ИНН: {{inn}}")
+    doc.save(str(tpl_dir / "dogovor_template.docx"))
+    monkeypatch.setattr(scenarios, "TEMPLATES_DIR", tpl_dir)
+
+
+def test_fill_contract_llm_fallback(tmp_path, monkeypatch):
+    ws = _ws(tmp_path, monkeypatch)
+    _tiny_template(tmp_path, monkeypatch)
+    fake = _ExtractLLM()
+    monkeypatch.setattr(scenarios, "LLM", lambda config=None: fake)
+    monkeypatch.setenv("VANYA_LLM_EXTRACT", "1")
+    (ws / "src.txt").write_text(
+        "Наименование организации: ООО «Ромашка»", encoding="utf-8"
+    )
+
+    result = scenarios.fill_contract("src.txt")
+    assert result["ok"] is True
+    assert result["fields"]["inn"] == "7701234567"  # дозаполнено моделью
+    assert result["model_fields"] == ["inn"]  # bik пустой — не считается
+    assert fake.calls == 1
+
+
+def test_fill_contract_llm_fallback_disabled_by_default(tmp_path, monkeypatch):
+    ws = _ws(tmp_path, monkeypatch)
+    _tiny_template(tmp_path, monkeypatch)
+    monkeypatch.delenv("VANYA_LLM_EXTRACT", raising=False)
+    fake = _ExtractLLM()
+    monkeypatch.setattr(scenarios, "LLM", lambda config=None: fake)
+    (ws / "src.txt").write_text(
+        "Наименование организации: ООО «Ромашка»", encoding="utf-8"
+    )
+
+    result = scenarios.fill_contract("src.txt")
+    assert result["ok"] is True
+    assert result["model_fields"] == []
+    assert fake.calls == 0  # модель не вызывалась

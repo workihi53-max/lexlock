@@ -179,6 +179,7 @@ def test_scenario_rejects_traversal(client, monkeypatch):
     for url, body in [
         ("/api/scenario/fill", {"filename": "../../etc/passwd"}),
         ("/api/scenario/risks", {"filename": "../x"}),
+        ("/api/scenario/export_risks", {"filename": "../x"}),
         ("/api/scenario/ask", {"filename": "/etc/passwd", "question": "что тут?"}),
     ]:
         r = client.post(url, json=body)
@@ -264,6 +265,17 @@ def test_scenario_ask(client, monkeypatch):
                     json={"filename": "a.txt", "question": "какая сумма?"})
     assert r.status_code == 200
     assert r.json()["answer"] == "Сумма — 100 000 ₽"
+
+
+def test_scenario_export_risks(client, monkeypatch):
+    monkeypatch.setattr(server, "vanya_scenarios", fake_scenarios(
+        export_risks=lambda filename: {
+            "ok": True, "download_name": filename + "_risks.docx",
+            "risks": [{"punkt": "1", "risk": "риск"}],
+        }))
+    r = client.post("/api/scenario/export_risks", json={"filename": "a.txt"})
+    assert r.status_code == 200
+    assert r.json()["download_name"] == "a.txt_risks.docx"
 
 
 def test_scenario_ask_empty_question_400(client, monkeypatch):

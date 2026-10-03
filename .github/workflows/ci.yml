@@ -1,0 +1,19 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Установить uv
+        uses: astral-sh/setup-uv@v5
+      - name: Создать venv
+        run: uv venv --python 3.12 .venv
+      - name: Установить зависимости
+        run: uv pip install --python .venv/bin/python -e ".[dev]"
+      - name: Тесты (без Ollama)
+        run: .venv/bin/python -m pytest tests -q

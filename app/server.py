@@ -212,6 +212,14 @@ def create_app(config: Any | None = None) -> FastAPI:
         except Exception as exc:
             raise _scenario_error(str(exc)) from exc
 
+    @app.post("/api/scenario/export_risks")
+    def scenario_export_risks(req: RisksRequest):
+        _checked_path(workspace, req.filename)
+        try:
+            return vanya_scenarios.export_risks(req.filename)
+        except Exception as exc:
+            raise _scenario_error(str(exc)) from exc
+
     @app.post("/api/scenario/ask")
     def scenario_ask(req: AskRequest):
         _checked_path(workspace, req.filename)
