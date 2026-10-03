@@ -1,81 +1,74 @@
 # Установщики «Вани»
 
-Здесь лежат сборки для трёх систем. Все они используют один принцип: установщик
-кладет проект, а при первом запуске `install.sh`/`install.ps1` сам ставит `uv`,
-Ollama, зависимости и модель (нужен интернет один раз, дальше всё офлайн).
+Цель упаковки — чтобы **юрист без опыта** скачал один файл и запустил приложение,
+ни разу не открыв терминал (см. «Принципы установки» в `AGENTS.md`).
 
-| Система | Файл | Сборка | Статус |
+| Система | Файл | Как ставит пользователь | Сборка |
 |---|---|---|---|
-| macOS | `Vanya-<версия>.dmg` | `bash packaging/macos/build_dmg.sh` (только macOS) | проверено локально |
-| Linux | `Vanya-<версия>-<арх>.AppImage` | `bash packaging/linux/build_appimage.sh` (Linux) | собирается в CI |
-| Windows | `Vanya-<версия>-win-setup.exe` | `iscc packaging/windows/installer.iss` (Windows) | собирается в CI |
+| macOS | `Vanya-<версия>.dmg` | открыть `.dmg` → перетащить «Ваня» в «Программы» → запустить | `bash packaging/macos/build_dmg.sh` |
+| Linux | `Vanya-<версия>-<арх>.AppImage` | сделать файл исполняемым → двойной клик | `bash packaging/linux/build_appimage.sh` |
+| Windows | `Vanya-<версия>-win-setup.exe` | обычный установщик с кнопкой «Далее» | `iscc packaging/windows/installer.iss` |
 
-Автоматическая сборка всех трёх — по тегу `v*`: workflow `.github/workflows/release.yml`
-соберёт файлы и приложит их к GitHub Release.
+Первый запуск скачивает Ollama и модель (~2 ГБ) — дальше приложение работает офлайн.
 
-## macOS
+## macOS — настоящий `.app`, без терминала
 
-```bash
-bash packaging/macos/build_dmg.sh   # → dist/Vanya-0.1.0.dmg
-```
-
-Пользователь открывает `.dmg`, перетаскивает «Ваня» и запускает
-«Установить и запустить.command» двойным кликом. Откроется Терминал, пройдёт
-установка, браузер откроется сам.
-
-## Linux (AppImage)
+`build_dmg.sh` собирает `Ваня.app` (нативные диалоги через `osascript`) и красивый `.dmg`
+с ярлыком «Программы» для перетаскивания. Пользователь видит только диалоги:
+«Продолжить» → уведомление об установке → автоматически открывается браузер.
+Журнал установки: `~/Library/Logs/Vanya.log`.
 
 ```bash
-bash packaging/linux/build_appimage.sh   # → dist/Vanya-0.1.0-x86_64.AppImage
+bash packaging/macos/build_dmg.sh   # → dist/Vanya-0.2.0.dmg
 ```
 
-AppImage универсален: один файл для большинства дистрибутивов. При первом запуске
-разворачивает проект в `~/vanya-legal-vault` и ставит компоненты.
+## Linux — AppImage с диалогами
+
+`AppRun` показывает прогресс через `zenity`/`kdialog` (если есть в системе), ставит
+компоненты и сам открывает браузер. Проект разворачивается в `~/vanya-legal-vault`.
 
 ```bash
-chmod +x Vanya-0.1.0-x86_64.AppImage
-./Vanya-0.1.0-x86_64.AppImage
+bash packaging/linux/build_appimage.sh   # → dist/Vanya-0.2.0-x86_64.AppImage
+chmod +x Vanya-0.2.0-x86_64.AppImage && ./Vanya-0.2.0-x86_64.AppImage
 ```
 
-## Windows
+## Windows — установщик с ярлыками, сервер без консоли
 
-Быстрый путь без сборки — из архива с исходниками:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File packaging\windows\install.ps1
-run.bat
-```
-
-Полный установщик (ярлыки, автозапуск установки) собирается Inno Setup 6:
+Inno Setup копирует файлы и запускает установку компонентов **скрыто** (сообщение на
+экране прогресса). Ярлыки запускают `run.vbs`: сервер стартует без чёрного окна, браузер
+открывается сам. Журнал: `vanya.log` рядом с приложением.
 
 ```cmd
 iscc packaging\windows\installer.iss
 ```
 
+Быстрый путь без сборки (из исходников):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File packaging\windows\install.ps1
+```
+
 ## OCR
 
-OCR включается автоматически install-скриптами: `install.ps1`/`install.sh` ставят
-Tesseract с русским языком и Python-extra `[ocr]` (PyMuPDF). Отключить: `./install.sh --no-ocr`.
+`install.sh`/`install.ps1` ставят Tesseract с русским языком и Python-extra `[ocr]`
+(PyMuPDF). Отключить: `./install.sh --no-ocr`.
 
 ## Подпись файлов (code signing)
 
-Шаги подписи уже в `.github/workflows/release.yml` и запускаются, только если в
-репозитории заданы секреты. Без них собираются неподписанные файлы.
+Шаги подписи в `.github/workflows/release.yml` запускаются, только если заданы секреты.
 
-**macOS** — секреты репозитория:
-`APPLE_CERT_P12` (base64 от .p12), `APPLE_CERT_PASSWORD`, `APPLE_ID`,
-`APPLE_TEAM_ID`, `APPLE_APP_PASSWORD` (app-specific password). Нужен сертификат
-«Developer ID Application» из Apple Developer Program.
+**macOS:** `APPLE_CERT_P12` (base64 .p12), `APPLE_CERT_PASSWORD`, `APPLE_ID`,
+`APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`. Нужен сертификат «Developer ID Application».
 
-**Windows** — секреты: `WINDOWS_CERT_PFX_BASE64` (base64 от .pfx) и
-`WINDOWS_CERT_PASSWORD`. Нужен code-signing сертификат (EV или OV).
+**Windows:** `WINDOWS_CERT_PFX_BASE64`, `WINDOWS_CERT_PASSWORD`. Нужен code-signing
+сертификат. Без подписи Gatekeeper/SmartScreen показывают предупреждение — это ожидаемо.
 
-Сертификаты — платные и выдаются на организацию; после их добавления в
-Settings → Secrets and variables → Actions подпись включится автоматически.
+## Релиз
+
+Пуш тега `v*` запускает `release.yml`: собирает все три файла и прикладывает к GitHub
+Release. **Не** кладите сборочные инструменты в `dist/` — они попадут в ассеты.
 
 ## Чего ещё нет
 
-- Установщики без интернета (модель и Ollama всё ещё скачиваются при первом запуске).
-- Настоящий `.app`/`.pkg` для macOS с нотаризацией (сейчас `.dmg` с launcher).
-- Единый бинарник с вшитым Python — сейчас Python ставит `uv` автоматически.
-
+- Полностью офлайн-установка (модель и Ollama всё ещё докачиваются при первом запуске).
+- Нотаризация macOS завязана на `.pkg`/`.app`; сейчас подписывается `.dmg` и вложенный `.app`.

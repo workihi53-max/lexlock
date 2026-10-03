@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Сборка macOS-установщика «Вани» (.dmg) с двойным кликом.
-# Содержит проект и «Установить и запустить.command», который сам поставит uv,
-# Ollama, зависимости и запустит приложение. hdiutil входит в macOS, Xcode не нужен.
+# Сборка macOS-установщика «Вани»: настоящий .app + .dmg с перетаскиванием
+# в «Программы». Пользователь не видит терминала — только нативные диалоги.
+# hdiutil/sips/iconutil входят в macOS, Xcode не нужен.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -9,6 +9,7 @@ DIST="$ROOT/dist"
 STAGE="$DIST/dmg-stage"
 VERSION="$(grep -m1 '^version' "$ROOT/pyproject.toml" | sed -E 's/.*"(.*)".*/\1/')"
 APP_NAME="Ваня"
+APP="$STAGE/$APP_NAME.app"
 DMG="$DIST/Vanya-$VERSION.dmg"
 
 if [ "$(uname -s)" != "Darwin" ]; then
@@ -18,35 +19,100 @@ fi
 
 echo "==> Версия: $VERSION"
 rm -rf "$STAGE"
-mkdir -p "$STAGE/$APP_NAME"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
-echo "==> Копирую проект"
+echo "==> Копирую проект в приложение"
 rsync -a \
     --exclude '.venv' --exclude 'workspace' --exclude 'dist' --exclude '.git' \
     --exclude '__pycache__' --exclude '*.pyc' --exclude '.pytest_cache' \
     --exclude '.vanya_model' --exclude '*.egg-info' \
-    "$ROOT/" "$STAGE/$APP_NAME/"
+    "$ROOT/" "$APP/Contents/Resources/vanya/"
 
-LAUNCHER="$STAGE/Установить и запустить.command"
-cat > "$LAUNCHER" <<'EOF'
-#!/bin/bash
-# «Ваня» — двойной клик: установить (первый раз) и запустить.
-cd "$(dirname "$0")" || exit 1
-clear
-echo "=== Ваня: локальный офлайн-ассистент для юристов ==="
-echo
-if [ ! -x .venv/bin/python ]; then
-    echo "Первый запуск: устанавливаю окружение, Ollama и модель..."
-    ./install.sh || {
-        echo
-        echo "Установка не удалась. Проверьте интернет и скопируйте текст выше."
-        read -r -p "Enter — закрыть..." _
-        exit 1
-    }
+# --- иконка .icns из PNG ---
+ICON_SRC="$ROOT/packaging/linux/vanya.png"
+if [ -f "$ICON_SRC" ]; then
+    ICONSET="$DIST/vanya.iconset"
+    rm -rf "$ICONSET"; mkdir -p "$ICONSET"
+    for size in 16 32 64 128 256 512; do
+        sips -z $size $size "$ICON_SRC" --out "$ICONSET/icon_${size}x${size}.png" >/dev/null 2>&1 || true
+        d=$((size * 2))
+        sips -z $d $d "$ICON_SRC" --out "$ICONSET/icon_${size}x${size}@2x.png" >/dev/null 2>&1 || true
+    done
+    iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/vanja.icns" >/dev/null 2>&1 || \
+        cp "$ICON_SRC" "$APP/Contents/Resources/vanja.icns" 2>/dev/null || true
 fi
-./run.sh
-EOF
-chmod +x "$LAUNCHER"
+
+# --- Info.plist ---
+cat > "$APP/Contents/Info.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key><string>$APP_NAME</string>
+    <key>CFBundleDisplayName</key><string>$APP_NAME</string>
+    <key>CFBundleIdentifier</key><string>ru.legalvault.vanya</string>
+    <key>CFBundleVersion</key><string>$VERSION</string>
+    <key>CFBundleShortVersionString</key><string>$VERSION</string>
+    <key>CFBundleExecutable</key><string>vanya</string>
+    <key>CFBundleIconFile</key><string>vanja</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>LSMinimumSystemVersion</key><string>11.0</string>
+    <key>NSHighResolutionCapable</key><true/>
+    <key>LSUIElement</key><true/>
+    <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
+</dict>
+</plist>
+PLIST
+
+# --- исполняемый лаунчер (GUI через osascript, без терминала) ---
+cat > "$APP/Contents/MacOS/vanya" <<'LAUNCHER'
+#!/bin/bash
+# Двойной клик: установить (первый раз) и запустить «Ваню».
+set -u
+HERE="$(cd "$(dirname "$0")" && pwd)"
+DIR="$HERE/../Resources/vanya"
+LOG="$HOME/Library/Logs/Vanya.log"
+URL="http://127.0.0.1:8765"
+mkdir -p "$(dirname "$LOG")"
+export PATH="$HOME/.local/bin:$HOME/.local/git/bin:$HOME/.local/ocr/bin:$PATH"
+
+say() { [ "${VANYA_NO_GUI:-0}" = "1" ] || osascript -e "display notification \"$1\" with title \"Ваня\"" >/dev/null 2>&1 || true; }
+ask() {
+    [ "${VANYA_NO_GUI:-0}" = "1" ] && return 0
+    osascript -e "display dialog \"$1\" buttons {\"Продолжить\", \"Отмена\"} default button 1 with title \"Ваня\"" \
+        >/dev/null 2>&1 || return 1
+}
+fail() {
+    if [ "${VANYA_NO_GUI:-0}" = "1" ]; then echo "$1" >&2; else
+        osascript -e "display dialog \"$1\n\nЖурнал: $LOG\" buttons {\"OK\"} with icon stop with title \"Ваня\"" >/dev/null 2>&1 || true
+    fi
+}
+
+cd "$DIR" || { fail "Не нашёл файлы приложения."; exit 1; }
+
+if [ ! -x .venv/bin/python ]; then
+    ask "Ваня установится и откроется в браузере.\nПервый запуск скачает компоненты и модель (~2 ГБ),\nэто займёт несколько минут." || exit 0
+    say "Устанавливаю «Ваню», это займёт несколько минут…"
+    if ! ./install.sh >>"$LOG" 2>&1; then
+        fail "Не удалось установить. Проверьте интернет и попробуйте снова."
+        exit 1
+    fi
+fi
+
+# Запускаем сервер в фоне (без своего браузера), затем открываем его сами.
+( ./run.sh --no-browser >>"$LOG" 2>&1 & ) || { fail "Не удалось запустить приложение."; exit 1; }
+
+for _ in $(seq 1 40); do
+    if curl -s --max-time 1 "$URL/api/health" >/dev/null 2>&1; then break; fi
+    sleep 1
+done
+open "$URL" >/dev/null 2>&1 || true
+say "Ваня запущен — открываю браузер."
+LAUNCHER
+chmod +x "$APP/Contents/MacOS/vanya"
+
+# --- фон DMG: ссылка на «Программы» ---
+ln -s /Applications "$STAGE/Applications"
 
 echo "==> Создаю $DMG"
 mkdir -p "$DIST"
@@ -55,5 +121,4 @@ hdiutil create -volname "$APP_NAME" -srcfolder "$STAGE" -ov -format UDZO "$DMG" 
 
 echo
 echo "Готово: $DMG"
-echo "Передайте файл пользователю: открыть .dmg → перетащить «Ваня» на рабочий стол."
-echo "Первый запуск потребует интернет (Ollama и модель ~2 ГБ)."
+echo "Пользователь: открыть .dmg → перетащить «${APP_NAME}» в «Программы» → запустить."

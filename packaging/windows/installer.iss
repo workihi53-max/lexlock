@@ -3,7 +3,7 @@
 ; Требуется установленный Inno Setup (на CI: choco install innosetup).
 
 #define MyAppName "Ваня"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "0.2.0"
 #define MyAppPublisher "Legal AI Vault"
 
 [Setup]
@@ -32,11 +32,11 @@ Source: "..\..\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs igno
     Excludes: ".venv\*,.venv,workspace\*,workspace,dist\*,dist,.git\*,.git,__pycache__\*,__pycache__,*.pyc,.pytest_cache\*,.vanya_model,*.egg-info\*"
 
 [Icons]
-Name: "{group}\Ваня"; Filename: "{app}\run.bat"; WorkingDir: "{app}"; Comment: "Запустить «Ваню»"
+Name: "{group}\Ваня"; Filename: "{sys}\wscript.exe"; Parameters: """{app}\packaging\windows\run.vbs"""; WorkingDir: "{app}"; Comment: "Запустить «Ваню»"
 Name: "{group}\Установить компоненты"; Filename: "powershell.exe"; \
     Parameters: "-ExecutionPolicy Bypass -File ""{app}\packaging\windows\install.ps1"""; \
     WorkingDir: "{app}"; Comment: "Поставить uv, Ollama, модель"
-Name: "{autodesktop}\Ваня"; Filename: "{app}\run.bat"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{autodesktop}\Ваня"; Filename: "{sys}\wscript.exe"; Parameters: """{app}\packaging\windows\run.vbs"""; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Tasks]
 Name: "desktopicon"; Description: "Создать ярлык на рабочем столе"; GroupDescription: "Дополнительно:"
@@ -46,5 +46,6 @@ Name: "desktopicon"; Description: "Создать ярлык на рабочем
 Filename: "powershell.exe"; \
     Parameters: "-ExecutionPolicy Bypass -File ""{app}\packaging\windows\install.ps1"""; \
     WorkingDir: "{app}"; StatusMsg: "Устанавливаю окружение, Ollama и модель..."; \
-    Flags: waituntilterminated
-Filename: "{app}\run.bat"; Description: "Запустить «Ваню»"; Flags: postinstall nowait skipifsilent
+    Flags: runhidden waituntilterminated
+Filename: "{sys}\wscript.exe"; Parameters: """{app}\packaging\windows\run.vbs"""; \
+    Description: "Запустить «Ваню»"; Flags: postinstall nowait skipifsilent

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Сборка универсального Linux AppImage «Вани» (один файл для всех дистрибутивов).
-# Собирается на Linux. appimagetool скачается автоматически.
+# При запуске показывает понятные диалоги (zenity/kdialog), без терминала.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -27,38 +27,53 @@ rsync -a \
 
 cat > "$APPDIR/AppRun" <<'EOF'
 #!/bin/bash
-# «Ваня»: разворачиваем проект в домашний каталог (AppImage только для чтения)
-# и запускаем установку/сервер оттуда.
-set -e
+# «Ваня» на Linux: разворачиваем проект в домашний каталог (AppImage только для
+# чтения) и запускаем установку/сервер. Прогресс — через zenity/kdialog, если есть.
+set -u
 HERE="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 TARGET="${VANYA_DIR:-$HOME/vanya-legal-vault}"
+LOG="$HOME/.vanya-install.log"
+URL="http://127.0.0.1:8765"
+
+info()  { command -v zenity >/dev/null && zenity --info --title="Ваня" --text="$1" --width=420 2>/dev/null; }
+error() { command -v zenity >/dev/null && zenity --error --title="Ваня" --text="$1\n\nЖурнал: $LOG" --width=460 2>/dev/null; }
+ask()   { command -v zenity >/dev/null && zenity --question --title="Ваня" --text="$1" --width=440 2>/dev/null; }
+note()  { command -v notify-send >/dev/null && notify-send "Ваня" "$1" 2>/dev/null; }
+
 if [ ! -x "$TARGET/.venv/bin/python" ]; then
-    echo "Первый запуск: разворачиваю «Ваню» в $TARGET"
-    mkdir -p "$TARGET"
-    cp -R "$HERE/app/." "$TARGET/"
+    info "Ваня установится и откроется в браузере.\nПервый запуск скачает компоненты и модель (~2 ГБ)." || exit 0
+    if [ ! -d "$TARGET" ]; then
+        mkdir -p "$TARGET"
+        cp -R "$HERE/app/." "$TARGET/"
+    fi
+    cd "$TARGET" || exit 1
+    if ! ./install.sh >>"$LOG" 2>&1; then
+        error "Не удалось установить. Проверьте интернет и попробуйте снова."
+        exit 1
+    fi
 fi
-cd "$TARGET"
-if [ ! -x .venv/bin/python ]; then
-    ./install.sh
-fi
-exec ./run.sh
+
+cd "$TARGET" || exit 1
+( ./run.sh --no-browser >>"$LOG" 2>&1 & )
+for _ in $(seq 1 40); do
+    curl -s --max-time 1 "$URL/api/health" >/dev/null 2>&1 && break
+    sleep 1
+done
+command -v xdg-open >/dev/null && xdg-open "$URL" >/dev/null 2>&1 || true
+note "Ваня запущен — открываю браузер."
 EOF
 chmod +x "$APPDIR/AppRun"
 cp "$ROOT/packaging/linux/vanya.desktop" "$APPDIR/vanya.desktop"
 cp "$ROOT/packaging/linux/vanya.png" "$APPDIR/vanya.png"
 
 TOOL="$(mktemp -d)/appimagetool-$ARCH.AppImage"
-if [ ! -x "$TOOL" ]; then
-    echo "==> Скачиваю appimagetool"
-    curl -fL --retry 3 -o "$TOOL" \
-        "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-$ARCH.AppImage"
-    chmod +x "$TOOL"
-fi
+echo "==> Скачиваю appimagetool"
+curl -fL --retry 3 -o "$TOOL" \
+    "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-$ARCH.AppImage"
+chmod +x "$TOOL"
 
 echo "==> Собираю $OUT"
-# На CI без FUSE запускаем через извлечение.
 APPIMAGE_EXTRACT_AND_RUN=1 ARCH="$ARCH" "$TOOL" "$APPDIR" "$OUT"
 
 echo
 echo "Готово: $OUT"
-echo "Запуск: chmod +x \"$OUT\" && ./$(basename "$OUT")"
