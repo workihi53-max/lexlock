@@ -3,11 +3,22 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from typing import Iterator
 
 from . import prompts, tools
 from .llm import LLM, LLMError
+
+_CYRILLIC = re.compile(r"[\u0400-\u04ff]")
+_CJK = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]")
+
+
+def needs_russian_retry(text: str) -> bool:
+    """True, если ответ пришёл на CJK-языке и без кириллицы."""
+    if not text or not text.strip():
+        return False
+    return bool(_CJK.search(text)) and not _CYRILLIC.search(text)
 
 
 @dataclass
@@ -32,6 +43,7 @@ class Agent:
             messages.extend(history)
         messages.append({"role": "user", "content": user_message})
 
+        language_fixed = False
         for _step in range(self.max_steps):
             try:
                 result = self.llm.chat(messages, tools=tools.tool_schemas())
@@ -73,6 +85,16 @@ class Agent:
                             "name": tc.name,
                         }
                     )
+                continue
+
+            if not language_fixed and needs_russian_retry(result.content):
+                language_fixed = True
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": "Отвечай только на русском языке. Повтори ответ по-русски.",
+                    }
+                )
                 continue
 
             yield Event("final", {"answer": result.content})

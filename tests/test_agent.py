@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from docx import Document
 
-from vanya.agent import Agent
+from vanya.agent import Agent, needs_russian_retry
 from vanya.config import Config
 from vanya.llm import LLM, ChatResult, LLMError, ToolCall
 from vanya import docs, scenarios
@@ -122,6 +122,29 @@ def test_agent_run_sync_returns_last_event():
     events = list(Agent(llm=_ErrorLLM()).run("привет"))
     last = Agent(llm=_ErrorLLM()).run_sync("привет")
     assert last.kind == events[-1].kind
+
+
+# --- язык ответа ---
+
+
+def test_needs_russian_retry():
+    assert needs_russian_retry("你好，我是瓦尼亚") is True
+    assert needs_russian_retry("Привет, я Ваня") is False
+    assert needs_russian_retry("Hello, world") is False  # латиница не считается сбоем
+    assert needs_russian_retry("") is False
+
+
+def test_agent_retries_in_russian_after_cjk():
+    fake = _FakeLLM(
+        [
+            ChatResult(content="你好，我是瓦尼亚", tool_calls=[]),
+            ChatResult(content="Здравствуйте, я Ваня", tool_calls=[]),
+        ]
+    )
+    events = list(Agent(llm=fake).run("привет"))
+    assert events[-1].kind == "final"
+    assert events[-1].data["answer"] == "Здравствуйте, я Ваня"
+    assert len(fake.calls) == 2  # первый ответ отклонён, был повтор
 
 
 # --- json_chat ---
