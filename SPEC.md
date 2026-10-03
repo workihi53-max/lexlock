@@ -24,6 +24,8 @@
 ├── bootstrap.sh               [C]   установка одной командой без git
 ├── run.sh                     [C]   запуск приложения (офлайн)
 ├── .github/workflows/ci.yml   [C]   автопроверка тестов на GitHub Actions
+├── .github/workflows/release.yml [C] сборка установщиков по тегу v*
+├── packaging/                 [C]   .dmg (macOS), AppImage (Linux), Inno Setup (Windows)
 ├── vanya/                     [A: ядро]
 │   ├── __init__.py
 │   ├── config.py
@@ -203,7 +205,14 @@ def find_risks(filename: str) -> dict
     #  "fallback": bool, "cached": bool}  — если LLM недоступна, отдаёт эвристический список и fallback=True
 def ask(filename: str, question: str) -> dict
     # {"ok": True, "answer": str, "cached": bool}
+def export_risks(filename: str) -> dict
+    # find_risks() + сохранение отчёта в .docx: {"ok": True, "out_path": str,
+    #  "download_name": str, "risks": [...], "fallback": bool}
 ```
+
+Если задан `VANYA_LLM_EXTRACT=1`, `fill_contract` дозаполняет ненайденные поля
+через LLM и возвращает их имена в `model_fields`; при недоступной модели поведение
+остаётся детерминированным (инвариант 2).
 
 ### 2.9 Веб-API (`app/server.py`, FastAPI, uvicorn, порт из конфига)
 
@@ -215,6 +224,7 @@ def ask(filename: str, question: str) -> dict
 | POST | `/api/upload` | multipart `files` → сохраняет в workspace → `{"saved":[...]}`. Один файл ≤ 25 МБ, иначе 413 |
 | POST | `/api/scenario/fill` | `{"filename"?,"out_name"?}` → результат `scenarios.fill_contract`. Пустой/отсутствующий `filename` = режим «пакет» (все документы) |
 | POST | `/api/scenario/risks` | `{"filename"}` → `scenarios.find_risks` |
+| POST | `/api/scenario/export_risks` | `{"filename"}` → `scenarios.export_risks` (отчёт `.docx`) |
 | POST | `/api/scenario/ask` | `{"filename","question"}` → `scenarios.ask` |
 | POST | `/api/chat` | SSE-поток `Event` из `Agent.run` (JSON-строки, `data: {...}\n\n`) |
 | GET | `/api/download/{name}` | отдаёт файл из workspace |
@@ -231,7 +241,11 @@ def ask(filename: str, question: str) -> dict
 - `run.sh` — активирует venv, `VANYA_OFFLINE=1` по умолчанию, стартует `python -m app.server`,
   печатает URL и открывает браузер. Флаги `--no-offline` и `--no-browser`.
 - `scripts/check_ram.py` — печатает ОЗУ/swap/диск/ядра, предупреждает при <3 ГБ свободно,
-  возвращает 0/1 (1 — рискованно для запуска модели).
+  возвращает 0/1 (1 — рискованно для запуска модели). `--recommend` печатает модель
+  по свободной ОЗУ: `qwen2.5:3b` при ≥5 ГБ, иначе `qwen2.5:1.5b`.
+- `packaging/` — сборка установщиков: `macos/build_dmg.sh`, `linux/build_appimage.sh`,
+  `windows/install.ps1` + `windows/installer.iss`. Все ставят uv/Ollama/модель при первом
+  запуске. Автосборка — `.github/workflows/release.yml` по тегу `v*`.
 - `scripts/make_template.py` — создаёт `templates/dogovor_template.docx` (договор оказания
   услуг: шапка, реквизиты через `{{...}}`, разделы 1–7, подписи). Плейсхолдеры строго из `FIELDS`.
 - `scripts/demo_data.py` — создаёт `samples/*` если их нет (текст — из задач [D]).
