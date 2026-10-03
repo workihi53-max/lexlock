@@ -250,9 +250,10 @@ def check_contract(filename: str, contract_type: str | None = None) -> dict
 - `scripts/check_ram.py` — печатает ОЗУ/swap/диск/ядра, предупреждает при <3 ГБ свободно,
   возвращает 0/1 (1 — рискованно для запуска модели). `--recommend` печатает модель
   по свободной ОЗУ: `qwen2.5:3b` при ≥5 ГБ, иначе `qwen2.5:1.5b`.
-- `packaging/` — сборка установщиков: `macos/build_dmg.sh`, `linux/build_appimage.sh`,
-  `windows/install.ps1` + `windows/installer.iss`. Все ставят uv/Ollama/модель при первом
-  запуске. Автосборка — `.github/workflows/release.yml` по тегу `v*`.
+- `packaging/` — сборка установщиков «для людей» (без терминала): macOS — `.app` в `.dmg`
+  (`macos/build_dmg.sh`), Linux — AppImage с zenity/kdialog (`linux/build_appimage.sh`),
+  Windows — Inno Setup + `run.vbs` без консоли (`windows/`). Все ставят uv/Ollama/модель
+  при первом запуске. Автосборка — `.github/workflows/release.yml` по тегу `v*`.
 - `scripts/make_template.py` — создаёт `templates/dogovor_template.docx` (договор оказания
   услуг: шапка, реквизиты через `{{...}}`, разделы 1–7, подписи). Плейсхолдеры строго из `FIELDS`.
 - `scripts/demo_data.py` — создаёт `samples/*` если их нет (текст — из задач [D]).
