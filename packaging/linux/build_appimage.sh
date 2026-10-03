@@ -47,7 +47,7 @@ chmod +x "$APPDIR/AppRun"
 cp "$ROOT/packaging/linux/vanya.desktop" "$APPDIR/vanya.desktop"
 cp "$ROOT/packaging/linux/vanya.png" "$APPDIR/vanya.png"
 
-TOOL="$DIST/appimagetool-$ARCH.AppImage"
+TOOL="$(mktemp -d)/appimagetool-$ARCH.AppImage"
 if [ ! -x "$TOOL" ]; then
     echo "==> Скачиваю appimagetool"
     curl -fL --retry 3 -o "$TOOL" \

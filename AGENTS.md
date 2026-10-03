@@ -257,4 +257,8 @@ VANYA_WORKSPACE="$VANYA_WORKSPACE" .venv/bin/python -c \
 - 2026-10-03 — локально поставлен `git` 2.56 через micromamba (без Xcode), проект
   переведён на обычные коммиты; `~/.local/git/bin` добавлен в PATH.
 - 2026-10-03 — тесты: +13 (ocr, checklists, endpoint) → 145 зелёных.
+- 2026-10-03 — релиз `v0.1.0`: workflow `release.yml` собрал `.dmg`, `.AppImage`,
+  Windows `.exe` (jobs macos/linux/windows/release — success) и опубликовал в Releases.
+  Исправление: `secrets` нельзя использовать в `if` — перенесено в `env` job'а;
+  `appimagetool` больше не попадает в ассеты (качается во временный каталог).
 
