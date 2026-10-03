@@ -1,14 +1,22 @@
 #!/usr/bin/env bash
-# Первичная установка «Вани» — интернет нужен один раз (ставятся зависимости и модель).
+# Первичная установка «Вани» — одна команда. Интернет нужен один раз:
+# ставятся uv, Ollama, зависимости Python и скачивается модель.
+#
+#   ./install.sh                # полная установка
+#   ./install.sh --skip-model   # без скачивания модели (быстрая проверка)
+#   ./install.sh --model qwen2.5:1.5b
+#
+# Скрипт сам ставит uv и Ollama, если их нет в системе.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV="$ROOT/.venv"
 MODEL="qwen2.5:3b"
 SKIP_MODEL=0
+OLLAMA_BIN=""
 
 usage() {
-    echo "Использование: ./install.sh [--skip-model] [--model ИМЯ]"
+    echo "Использование: ./install.sh [--skip-model] [--model ИМЯ] [-h]"
     echo "  --skip-model   не скачивать модель Ollama"
     echo "  --model ИМЯ    модель Ollama (по умолчанию qwen2.5:3b)"
     exit 1
@@ -23,22 +31,98 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-echo "==> Проверка окружения"
-if ! command -v python3 >/dev/null 2>&1; then
-    echo "Ошибка: python3 не найден. Установите Python 3.12." >&2
-    exit 1
+OS="$(uname -s)"
+
+# Добавляет в PATH места, куда uv/Ollama ставятся без root.
+add_local_paths() {
+    export PATH="$HOME/.local/bin:$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+}
+
+# Ищет бинарник ollama, включая установку в Ollama.app на macOS.
+find_ollama() {
+    if [ -n "$OLLAMA_BIN" ] && [ -x "$OLLAMA_BIN" ]; then
+        echo "$OLLAMA_BIN"; return 0
+    fi
+    if command -v ollama >/dev/null 2>&1; then
+        command -v ollama; return 0
+    fi
+    for candidate in \
+        /Applications/Ollama.app/Contents/Resources/ollama \
+        "$HOME/Applications/Ollama.app/Contents/Resources/ollama" \
+        /usr/local/bin/ollama /opt/homebrew/bin/ollama; do
+        if [ -x "$candidate" ]; then
+            echo "$candidate"; return 0
+        fi
+    done
+    return 1
+}
+
+echo "==> Проверка окружения ($OS)"
+
+# --- uv: ставим автоматически, если нет -------------------------------------
+add_local_paths
+if ! command -v uv >/dev/null 2>&1; then
+    echo "==> uv не найден — устанавливаю (https://astral.sh/uv)"
+    if command -v curl >/dev/null 2>&1; then
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+    elif command -v wget >/dev/null 2>&1; then
+        wget -qO- https://astral.sh/uv/install.sh | sh
+    else
+        echo "Ошибка: нужен curl или wget для установки uv." >&2
+        echo "Установите вручную: https://docs.astral.sh/uv/getting-started/installation/" >&2
+        exit 1
+    fi
+    add_local_paths
 fi
 if ! command -v uv >/dev/null 2>&1; then
-    echo "Ошибка: uv не найден. Установите: curl -LsSf https://astral.sh/uv/install.sh | sh" >&2
+    echo "Ошибка: uv установился, но не найден в PATH. Перезапустите терминал и повторите ./install.sh" >&2
     exit 1
 fi
+echo "    uv: $(command -v uv)"
 
-echo "==> Проверка ресурсов (предупреждение не останавливает установку)"
-if ! python3 "$ROOT/scripts/check_ram.py" --model "$MODEL"; then
-    echo "    Внимание: свободной ОЗУ мало — модель может работать медленно или уйти в своп."
+# --- Ollama: ставим автоматически, если нет --------------------------------
+if find_ollama >/dev/null 2>&1; then
+    OLLAMA_BIN="$(find_ollama)"
+    echo "    Ollama: $OLLAMA_BIN"
+else
+    echo "==> Ollama не найден — устанавливаю"
+    if [ "$OS" = "Darwin" ]; then
+        if command -v brew >/dev/null 2>&1; then
+            brew install ollama || echo "    Предупреждение: brew install ollama завершился с ошибкой." >&2
+        else
+            # Ставим официальное приложение Ollama.app без Homebrew.
+            TMPZIP="$(mktemp -d)/Ollama-darwin.zip"
+            echo "    Скачиваю Ollama.app (~200 МБ)..."
+            if curl -fL --retry 3 -o "$TMPZIP" https://ollama.com/download/Ollama-darwin.zip; then
+                for APP_DIR in /Applications "$HOME/Applications"; do
+                    if unzip -q -o "$TMPZIP" -d "$APP_DIR" 2>/dev/null; then
+                        echo "    Ollama.app установлен в $APP_DIR"
+                        break
+                    fi
+                done
+            fi
+            rm -f "$TMPZIP"
+        fi
+    else
+        # Linux: официальный скрипт установки.
+        if command -v curl >/dev/null 2>&1; then
+            curl -fsSL https://ollama.com/install.sh | sh || \
+                echo "    Предупреждение: установка Ollama завершилась с ошибкой." >&2
+        else
+            echo "    Предупреждение: для установки Ollama нужен curl." >&2
+        fi
+    fi
+    add_local_paths
+    if find_ollama >/dev/null 2>&1; then
+        OLLAMA_BIN="$(find_ollama)"
+        echo "    Ollama: $OLLAMA_BIN"
+    else
+        echo "    Предупреждение: Ollama автоматически не установилась." >&2
+        echo "    Установите вручную: https://ollama.com/download — затем повторите ./install.sh" >&2
+    fi
 fi
 
-echo "==> Создание виртуального окружения"
+echo "==> Создание виртуального окружения (Python 3.12 подтянет сам uv)"
 if [ ! -x "$VENV/bin/python" ]; then
     uv venv --python 3.12 "$VENV"
 fi
@@ -46,26 +130,37 @@ fi
 echo "==> Установка зависимостей"
 uv pip install --python "$VENV/bin/python" -e "$ROOT"
 
+echo "==> Проверка ресурсов (предупреждение не останавливает установку)"
+if ! "$VENV/bin/python" "$ROOT/scripts/check_ram.py" --model "$MODEL"; then
+    echo "    Внимание: свободной ОЗУ мало — модель может работать медленно или уйти в своп."
+fi
+
 if [ "$SKIP_MODEL" -eq 1 ]; then
     echo "==> Модель Ollama пропущена (--skip-model)"
+elif [ -z "$OLLAMA_BIN" ]; then
+    echo "==> Модель не скачана: Ollama не найдена." >&2
+    echo "    Установите Ollama и выполните: $OLLAMA_BIN pull $MODEL"
 else
-    if ! command -v ollama >/dev/null 2>&1; then
-        echo "Внимание: ollama не найден — модель не будет скачана." >&2
-        echo "Установите Ollama (https://ollama.com/download) и повторите ./install.sh" >&2
-    else
-        echo "==> Проверка Ollama"
-        if ! curl -s --max-time 2 http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
-            echo "    Запускаю ollama serve в фоне..."
-            nohup ollama serve >/dev/null 2>&1 &
-            for _ in $(seq 1 30); do
-                if curl -s --max-time 2 http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
-                    break
-                fi
-                sleep 1
-            done
-        fi
+    echo "==> Проверка Ollama"
+    if ! curl -s --max-time 2 http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
+        echo "    Запускаю ollama serve в фоне..."
+        nohup "$OLLAMA_BIN" serve >/dev/null 2>&1 &
+        for _ in $(seq 1 30); do
+            if curl -s --max-time 2 http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
+                break
+            fi
+            sleep 1
+        done
+    fi
+    if curl -s --max-time 2 http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
         echo "==> Скачивание модели $MODEL (может занять время)"
-        ollama pull "$MODEL"
+        "$OLLAMA_BIN" pull "$MODEL" || {
+            echo "    Предупреждение: не удалось скачать модель $MODEL." >&2
+            echo "    Повторите позже: $OLLAMA_BIN pull $MODEL" >&2
+        }
+    else
+        echo "    Предупреждение: Ollama не запустилась на 127.0.0.1:11434." >&2
+        echo "    Запустите вручную и повторите: $OLLAMA_BIN pull $MODEL" >&2
     fi
 fi
 
@@ -75,3 +170,4 @@ echo "==> Генерация шаблона и тестовых данных"
 
 echo
 echo "Готово. Запусти ./run.sh"
+echo "Если Ollama ставилась впервые — на macOS запустите приложение Ollama один раз."

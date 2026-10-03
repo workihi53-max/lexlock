@@ -8,6 +8,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -35,6 +36,7 @@ def estimate_model_ram(model: str) -> float:
 
 
 def _read_meminfo() -> dict[str, int]:
+    """Linux: разбирает /proc/meminfo (значения в кБ)."""
     vals: dict[str, int] = {}
     with open("/proc/meminfo", encoding="utf-8") as f:
         for line in f:
@@ -43,19 +45,80 @@ def _read_meminfo() -> dict[str, int]:
     return vals
 
 
-def collect() -> dict:
+def _run(cmd: list[str]) -> str:
+    return subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
+
+
+def _memory_macos() -> tuple[float, float, float, float]:
+    """macOS: (ОЗУ всего, свободно, swap всего, swap свободно) в ГБ.
+
+    Свободной считаем сумму free + inactive + speculative страниц: именно её
+    система готова отдать под процессы, тогда как vm_stat «free» занижен.
+    """
+    total_b = int(_run(["sysctl", "-n", "hw.memsize"]).strip())
+    page_size = int(_run(["sysctl", "-n", "hw.pagesize"]).strip() or "4096")
+    pages: dict[str, int] = {}
+    for line in _run(["vm_stat"]).splitlines():
+        if ":" not in line:
+            continue
+        key, rest = line.split(":", 1)
+        digits = re.sub(r"[^0-9]", "", rest)
+        if digits:
+            pages[key.strip()] = int(digits)
+    free_pages = (
+        pages.get("Pages free", 0)
+        + pages.get("Pages inactive", 0)
+        + pages.get("Pages speculative", 0)
+    )
+    ram_total_gb = total_b / GB
+    ram_free_gb = free_pages * page_size / GB
+
+    swap_total_gb = swap_free_gb = 0.0
+    try:
+        swap = _run(["sysctl", "-n", "vm.swapusage"])
+        m_total = re.search(r"total\s*=\s*([\d.]+)([MG])", swap)
+        m_free = re.search(r"free\s*=\s*([\d.]+)([MG])", swap)
+
+        def _to_gb(match: re.Match[str] | None) -> float:
+            if not match:
+                return 0.0
+            value = float(match.group(1))
+            return value / 1024 if match.group(2) == "M" else value
+
+        swap_total_gb = _to_gb(m_total)
+        swap_free_gb = _to_gb(m_free)
+    except (subprocess.SubprocessError, ValueError):
+        pass
+    return ram_total_gb, ram_free_gb, swap_total_gb, swap_free_gb
+
+
+def _memory_linux() -> tuple[float, float, float, float]:
     mem = _read_meminfo()
     ram_total_kb = mem.get("MemTotal", 0)
     ram_avail_kb = mem.get("MemAvailable", mem.get("MemFree", 0))
     swap_total_kb = mem.get("SwapTotal", 0)
     swap_free_kb = mem.get("SwapFree", 0)
+    return (
+        ram_total_kb * 1024 / GB,
+        ram_avail_kb * 1024 / GB,
+        swap_total_kb * 1024 / GB,
+        swap_free_kb * 1024 / GB,
+    )
+
+
+def collect() -> dict:
+    """Собирает ресурсы машины на Linux и macOS."""
+    if sys.platform == "darwin":
+        ram_total, ram_free, swap_total, swap_free = _memory_macos()
+    else:
+        ram_total, ram_free, swap_total, swap_free = _memory_linux()
     root = Path(__file__).resolve().parent.parent
     du = shutil.disk_usage(root)
     return {
-        "ram_total_gb": round(ram_total_kb * 1024 / GB, 2),
-        "ram_free_gb": round(ram_avail_kb * 1024 / GB, 2),
-        "swap_total_gb": round(swap_total_kb * 1024 / GB, 2),
-        "swap_free_gb": round(swap_free_kb * 1024 / GB, 2),
+        "ram_total_gb": round(ram_total, 2),
+        "ram_free_gb": round(ram_free, 2),
+        "swap_total_gb": round(swap_total, 2),
+        "swap_free_gb": round(swap_free, 2),
         "disk_total_gb": round(du.total / GB, 2),
         "disk_free_gb": round(du.free / GB, 2),
         "cores": os.cpu_count() or 0,
