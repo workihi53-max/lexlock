@@ -312,4 +312,6 @@ VANYA_WORKSPACE="$VANYA_WORKSPACE" .venv/bin/python -c \
   с перетаскиванием в «Программы» и нативными диалогами; Linux AppImage — прогресс через
   zenity/kdialog и авто-открытие браузера; Windows — установка скрыта, запуск через
   `run.vbs` без консоли. Версия 0.2.0. Принципы и грабли — в разделах выше.
+- 2026-10-03 — релиз `v0.2.0` собран и опубликован (macos/linux/windows/release —
+  success): `Vanya-0.2.0.dmg`, `Vanya-0.2.0-x86_64.AppImage`, `Vanya-0.2.0-win-setup.exe`.
 
