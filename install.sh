@@ -13,6 +13,11 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV="$ROOT/.venv"
 MODEL="qwen2.5:3b"
 MODEL_EXPLICIT=0
+# Если модель задана снаружи — считаем выбор явным и авто-подбор не применяем.
+if [ -n "${VANYA_MODEL:-}" ]; then
+    MODEL="$VANYA_MODEL"
+    MODEL_EXPLICIT=1
+fi
 SKIP_MODEL=0
 NO_OCR=0
 OLLAMA_BIN=""

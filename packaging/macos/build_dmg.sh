@@ -58,7 +58,6 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>LSMinimumSystemVersion</key><string>11.0</string>
     <key>NSHighResolutionCapable</key><true/>
-    <key>LSUIElement</key><true/>
     <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
 </dict>
 </plist>
@@ -68,9 +67,12 @@ PLIST
 cat > "$APP/Contents/MacOS/vanya" <<'LAUNCHER'
 #!/bin/bash
 # Двойной клик: установить (первый раз) и запустить «Ваню».
+# Ставим НЕ внутрь .app (он может быть read-only из-за Gatekeeper/translocation),
+# а в записываемую ~/Library/Application Support/Vanya.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
-DIR="$HERE/../Resources/vanya"
+SRC="$HERE/../Resources/vanya"
+DIR="$HOME/Library/Application Support/Vanya"
 LOG="$HOME/Library/Logs/Vanya.log"
 URL="http://127.0.0.1:8765"
 mkdir -p "$(dirname "$LOG")"
@@ -88,6 +90,15 @@ fail() {
     fi
 }
 
+# Разворачиваем/обновляем проект в записываемом каталоге.
+mkdir -p "$DIR" 2>>"$LOG" || { fail "Нет доступа к $DIR."; exit 1; }
+if command -v rsync >/dev/null 2>&1; then
+    rsync -a --delete \
+        --exclude '.venv' --exclude 'workspace' --exclude '.vanya_model' \
+        "$SRC/" "$DIR/" >>"$LOG" 2>&1 || cp -R "$SRC/." "$DIR/" 2>>"$LOG"
+else
+    cp -R "$SRC/." "$DIR/" 2>>"$LOG"
+fi
 cd "$DIR" || { fail "Не нашёл файлы приложения."; exit 1; }
 
 if [ ! -x .venv/bin/python ]; then
@@ -113,6 +124,20 @@ chmod +x "$APP/Contents/MacOS/vanya"
 
 # --- фон DMG: ссылка на «Программы» ---
 ln -s /Applications "$STAGE/Applications"
+
+# --- инструкция для Gatekeeper (приложение пока не подписано) ---
+cat > "$STAGE/Как открыть.txt" <<'TXT'
+Ваня — установка на macOS
+
+1. Перетащите «Ваня» в папку «Программы».
+2. Первый запуск: откройте «Программы», нажмите на «Ваня» ПРАВОЙ кнопкой мыши
+   (или Ctrl+клик) и выберите «Открыть» → «Открыть».
+   Это нужно один раз, потому что приложение пока не подписано Apple.
+3. Дальше «Ваня» запускается обычным двойным кликом.
+
+Приложение само скачает компоненты (~2 ГБ) и откроет браузер.
+Журнал установки: ~/Library/Logs/Vanya.log
+TXT
 
 echo "==> Создаю $DMG"
 mkdir -p "$DIST"
