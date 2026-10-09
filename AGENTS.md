@@ -347,4 +347,7 @@ LEXLOCK_WORKSPACE="$LEXLOCK_WORKSPACE" .venv/bin/python -c \
   `vanya-legal-vault` и ветку `master` — установка не сломается до переименования репозитория.
 - 2026-10-09 — репозиторий на GitHub переименован в `workihi53-max/lexlock`; добавлен
   `docs/09 Технические параметры для заявки.md` (техпараметры и соответствие направлению).
+- 2026-10-09 — релиз `v0.2.3` собран и опубликован (macos/linux/windows/release —
+  success): `LexLock-0.2.3-win-setup.exe` (уже с фиксом корня проекта),
+  `LexLock-0.2.3-x86_64.AppImage`, `LexLock-0.2.3.dmg`.
 
