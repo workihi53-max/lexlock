@@ -1,16 +1,16 @@
-"""Тесты инструментов (vanya.tools) и детерминированного сценария fill_contract."""
+"""Тесты инструментов (lexlock.tools) и детерминированного сценария fill_contract."""
 
 from __future__ import annotations
 
 from docx import Document
 
-from vanya import scenarios, tools
+from lexlock import scenarios, tools
 
 
 def _ws(tmp_path, monkeypatch):
     ws = tmp_path / "ws"
     ws.mkdir()
-    monkeypatch.setenv("VANYA_WORKSPACE", str(ws))
+    monkeypatch.setenv("LEXLOCK_WORKSPACE", str(ws))
     return ws
 
 

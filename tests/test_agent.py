@@ -7,17 +7,17 @@ from pathlib import Path
 import pytest
 from docx import Document
 
-from vanya.agent import Agent, needs_russian_retry
-from vanya.config import Config
-from vanya.llm import LLM, ChatResult, LLMError, ToolCall
-from vanya import docs, scenarios
+from lexlock.agent import Agent, needs_russian_retry
+from lexlock.config import Config
+from lexlock.llm import LLM, ChatResult, LLMError, ToolCall
+from lexlock import docs, scenarios
 
 
 def _cfg() -> Config:
     return Config(
         model="qwen2.5:3b",
         ollama_url="http://127.0.0.1:1",
-        workspace=Path("/tmp/vanya_test_ws"),
+        workspace=Path("/tmp/lexlock_test_ws"),
         port=8765,
         offline=True,
         max_ctx_chars=12000,
@@ -64,7 +64,7 @@ class _FailingLLM:
 def _ws(tmp_path, monkeypatch):
     ws = tmp_path / "ws"
     ws.mkdir()
-    monkeypatch.setenv("VANYA_WORKSPACE", str(ws))
+    monkeypatch.setenv("LEXLOCK_WORKSPACE", str(ws))
     return ws
 
 
@@ -129,7 +129,7 @@ def test_agent_run_sync_returns_last_event():
 
 def test_needs_russian_retry():
     assert needs_russian_retry("你好，我是瓦尼亚") is True
-    assert needs_russian_retry("Привет, я Ваня") is False
+    assert needs_russian_retry("Привет, я ЛексЛок") is False
     assert needs_russian_retry("Hello, world") is False  # латиница не считается сбоем
     assert needs_russian_retry("") is False
 
@@ -138,12 +138,12 @@ def test_agent_retries_in_russian_after_cjk():
     fake = _FakeLLM(
         [
             ChatResult(content="你好，我是瓦尼亚", tool_calls=[]),
-            ChatResult(content="Здравствуйте, я Ваня", tool_calls=[]),
+            ChatResult(content="Здравствуйте, я ЛексЛок", tool_calls=[]),
         ]
     )
     events = list(Agent(llm=fake).run("привет"))
     assert events[-1].kind == "final"
-    assert events[-1].data["answer"] == "Здравствуйте, я Ваня"
+    assert events[-1].data["answer"] == "Здравствуйте, я ЛексЛок"
     assert len(fake.calls) == 2  # первый ответ отклонён, был повтор
 
 
@@ -309,7 +309,7 @@ def test_fill_contract_llm_fallback(tmp_path, monkeypatch):
     _tiny_template(tmp_path, monkeypatch)
     fake = _ExtractLLM()
     monkeypatch.setattr(scenarios, "LLM", lambda config=None: fake)
-    monkeypatch.setenv("VANYA_LLM_EXTRACT", "1")
+    monkeypatch.setenv("LEXLOCK_LLM_EXTRACT", "1")
     (ws / "src.txt").write_text(
         "Наименование организации: ООО «Ромашка»", encoding="utf-8"
     )
@@ -324,7 +324,7 @@ def test_fill_contract_llm_fallback(tmp_path, monkeypatch):
 def test_fill_contract_llm_fallback_disabled_by_default(tmp_path, monkeypatch):
     ws = _ws(tmp_path, monkeypatch)
     _tiny_template(tmp_path, monkeypatch)
-    monkeypatch.delenv("VANYA_LLM_EXTRACT", raising=False)
+    monkeypatch.delenv("LEXLOCK_LLM_EXTRACT", raising=False)
     fake = _ExtractLLM()
     monkeypatch.setattr(scenarios, "LLM", lambda config=None: fake)
     (ws / "src.txt").write_text(

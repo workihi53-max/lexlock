@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Сборка универсального Linux AppImage «Вани» (один файл для всех дистрибутивов).
+# Сборка универсального Linux AppImage «ЛексЛока» (один файл для всех дистрибутивов).
 # При запуске показывает понятные диалоги (zenity/kdialog), без терминала.
 set -euo pipefail
 
@@ -13,8 +13,8 @@ case "$(uname -m)" in
     *) echo "Ошибка: неподдерживаемая архитектура $(uname -m)." >&2; exit 1 ;;
 esac
 
-APPDIR="$DIST/Vanya.AppDir"
-OUT="$DIST/Vanya-$VERSION-$ARCH.AppImage"
+APPDIR="$DIST/LexLock.AppDir"
+OUT="$DIST/LexLock-$VERSION-$ARCH.AppImage"
 
 echo "==> Версия: $VERSION, архитектура: $ARCH"
 rm -rf "$APPDIR"
@@ -22,26 +22,26 @@ mkdir -p "$APPDIR/app"
 rsync -a \
     --exclude '.venv' --exclude 'workspace' --exclude 'dist' --exclude '.git' \
     --exclude '__pycache__' --exclude '*.pyc' --exclude '.pytest_cache' \
-    --exclude '.vanya_model' --exclude '*.egg-info' \
+    --exclude '.lexlock_model' --exclude '*.egg-info' \
     "$ROOT/" "$APPDIR/app/"
 
 cat > "$APPDIR/AppRun" <<'EOF'
 #!/bin/bash
-# «Ваня» на Linux: разворачиваем проект в домашний каталог (AppImage только для
+# «ЛексЛок» на Linux: разворачиваем проект в домашний каталог (AppImage только для
 # чтения) и запускаем установку/сервер. Прогресс — через zenity/kdialog, если есть.
 set -u
 HERE="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
-TARGET="${VANYA_DIR:-$HOME/vanya-legal-vault}"
-LOG="$HOME/.vanya-install.log"
+TARGET="${LEXLOCK_DIR:-$HOME/lexlock}"
+LOG="$HOME/.lexlock-install.log"
 URL="http://127.0.0.1:8765"
 
-info()  { command -v zenity >/dev/null && zenity --info --title="Ваня" --text="$1" --width=420 2>/dev/null; }
-error() { command -v zenity >/dev/null && zenity --error --title="Ваня" --text="$1\n\nЖурнал: $LOG" --width=460 2>/dev/null; }
-ask()   { command -v zenity >/dev/null && zenity --question --title="Ваня" --text="$1" --width=440 2>/dev/null; }
-note()  { command -v notify-send >/dev/null && notify-send "Ваня" "$1" 2>/dev/null; }
+info()  { command -v zenity >/dev/null && zenity --info --title="ЛексЛок" --text="$1" --width=420 2>/dev/null; }
+error() { command -v zenity >/dev/null && zenity --error --title="ЛексЛок" --text="$1\n\nЖурнал: $LOG" --width=460 2>/dev/null; }
+ask()   { command -v zenity >/dev/null && zenity --question --title="ЛексЛок" --text="$1" --width=440 2>/dev/null; }
+note()  { command -v notify-send >/dev/null && notify-send "ЛексЛок" "$1" 2>/dev/null; }
 
 if [ ! -x "$TARGET/.venv/bin/python" ]; then
-    info "Ваня установится и откроется в браузере.\nПервый запуск скачает компоненты и модель (~2 ГБ)." || exit 0
+    info "ЛексЛок установится и откроется в браузере.\nПервый запуск скачает компоненты и модель (~2 ГБ)." || exit 0
     if [ ! -d "$TARGET" ]; then
         mkdir -p "$TARGET"
         cp -R "$HERE/app/." "$TARGET/"
@@ -60,11 +60,11 @@ for _ in $(seq 1 40); do
     sleep 1
 done
 command -v xdg-open >/dev/null && xdg-open "$URL" >/dev/null 2>&1 || true
-note "Ваня запущен — открываю браузер."
+note "ЛексЛок запущен — открываю браузер."
 EOF
 chmod +x "$APPDIR/AppRun"
-cp "$ROOT/packaging/linux/vanya.desktop" "$APPDIR/vanya.desktop"
-cp "$ROOT/packaging/linux/vanya.png" "$APPDIR/vanya.png"
+cp "$ROOT/packaging/linux/lexlock.desktop" "$APPDIR/lexlock.desktop"
+cp "$ROOT/packaging/linux/lexlock.png" "$APPDIR/lexlock.png"
 
 TOOL="$(mktemp -d)/appimagetool-$ARCH.AppImage"
 echo "==> Скачиваю appimagetool"

@@ -1,11 +1,11 @@
-"""Тесты работы с документами (vanya.docs)."""
+"""Тесты работы с документами (lexlock.docs)."""
 
 from __future__ import annotations
 
 import pytest
 from docx import Document
 
-from vanya import docs
+from lexlock import docs
 
 
 def _make_pdf(path, text: str) -> None:

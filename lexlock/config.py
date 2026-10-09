@@ -35,12 +35,12 @@ def _env_bool(name: str, default: bool) -> bool:
 
 def load_config() -> Config:
     """Читает настройки из окружения, подставляя значения по умолчанию."""
-    model = os.environ.get("VANYA_MODEL", DEFAULT_MODEL)
-    ollama_url = os.environ.get("VANYA_OLLAMA_URL", DEFAULT_OLLAMA_URL)
-    workspace = Path(os.environ.get("VANYA_WORKSPACE", REPO_ROOT / "workspace"))
-    port = int(os.environ.get("VANYA_PORT", DEFAULT_PORT))
-    offline = _env_bool("VANYA_OFFLINE", True)
-    max_ctx_chars = int(os.environ.get("VANYA_MAX_CTX", DEFAULT_MAX_CTX))
+    model = os.environ.get("LEXLOCK_MODEL", DEFAULT_MODEL)
+    ollama_url = os.environ.get("LEXLOCK_OLLAMA_URL", DEFAULT_OLLAMA_URL)
+    workspace = Path(os.environ.get("LEXLOCK_WORKSPACE", REPO_ROOT / "workspace"))
+    port = int(os.environ.get("LEXLOCK_PORT", DEFAULT_PORT))
+    offline = _env_bool("LEXLOCK_OFFLINE", True)
+    max_ctx_chars = int(os.environ.get("LEXLOCK_MAX_CTX", DEFAULT_MAX_CTX))
     return Config(
         model=model,
         ollama_url=ollama_url,

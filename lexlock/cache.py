@@ -1,7 +1,7 @@
 """Дисковый кэш результатов LLM по хешу содержимого.
 
-Повторный анализ того же документа мгновенный. Каталог — <workspace>/.vanya_cache.
-Отключается переменной окружения VANYA_CACHE=0. Ошибки кэша никогда не ломают
+Повторный анализ того же документа мгновенный. Каталог — <workspace>/.lexlock_cache.
+Отключается переменной окружения LEXLOCK_CACHE=0. Ошибки кэша никогда не ломают
 основной сценарий: при любой проблеме он просто работает без кэша.
 """
 
@@ -14,12 +14,12 @@ from pathlib import Path
 
 
 def enabled() -> bool:
-    raw = os.environ.get("VANYA_CACHE", "1").strip().lower()
+    raw = os.environ.get("LEXLOCK_CACHE", "1").strip().lower()
     return raw not in {"0", "false", "no", "off"}
 
 
 def cache_dir(workspace: str | Path) -> Path:
-    return Path(workspace) / ".vanya_cache"
+    return Path(workspace) / ".lexlock_cache"
 
 
 def make_key(*parts: str) -> str:

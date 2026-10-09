@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from vanya import cache
+from lexlock import cache
 
 
 def test_put_get_roundtrip(tmp_path):
@@ -17,7 +17,7 @@ def test_missing_key_returns_none(tmp_path):
 
 
 def test_cache_disabled_by_env(tmp_path, monkeypatch):
-    monkeypatch.setenv("VANYA_CACHE", "0")
+    monkeypatch.setenv("LEXLOCK_CACHE", "0")
     key = cache.make_key("x")
     cache.put(tmp_path, key, {"ok": True})
     assert cache.get(tmp_path, key) is None

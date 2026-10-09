@@ -1,6 +1,6 @@
-"""Веб-слой «Вани» (Legal AI Vault): FastAPI + одиночная статическая страница.
+"""Веб-слой «ЛексЛока» (Legal AI Vault): FastAPI + одиночная статическая страница.
 
-Слой общается с ядром vanya только через замороженные интерфейсы из SPEC.md §2.1–2.8.
+Слой общается с ядром lexlock только через замороженные интерфейсы из SPEC.md §2.1–2.8.
 Ollama не обязательна: детерминированные сценарии работают без модели.
 """
 
@@ -21,11 +21,11 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from vanya import agent as vanya_agent
-from vanya import config as vanya_config
-from vanya import llm as vanya_llm
-from vanya import offline as vanya_offline
-from vanya import scenarios as vanya_scenarios
+from lexlock import agent as lexlock_agent
+from lexlock import config as lexlock_config
+from lexlock import llm as lexlock_llm
+from lexlock import offline as lexlock_offline
+from lexlock import scenarios as lexlock_scenarios
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
@@ -92,7 +92,7 @@ def _sse_line(obj: dict) -> str:
 
 
 def _event_parts(event: Any) -> tuple[str, dict]:
-    """Event из vanya (kind/data) либо такой же dict."""
+    """Event из lexlock (kind/data) либо такой же dict."""
     if isinstance(event, dict):
         return event.get("kind", "status"), event.get("data", {})
     return event.kind, event.data
@@ -101,21 +101,21 @@ def _event_parts(event: Any) -> tuple[str, dict]:
 # --- приложение ---------------------------------------------------------------
 
 def create_app(config: Any | None = None) -> FastAPI:
-    config = config if config is not None else vanya_config.load_config()
+    config = config if config is not None else lexlock_config.load_config()
     workspace = Path(config.workspace)
-    llm = vanya_llm.LLM(config)
+    llm = lexlock_llm.LLM(config)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         workspace.mkdir(parents=True, exist_ok=True)
         if config.offline:
-            vanya_offline.enforce_offline()
+            lexlock_offline.enforce_offline()
         mode = "офлайн" if config.offline else "отладка"
-        print(f"Ваня запущен — адрес: http://127.0.0.1:{config.port} "
+        print(f"ЛексЛок запущен — адрес: http://127.0.0.1:{config.port} "
               f"| модель: {config.model} | режим: {mode}")
         yield
 
-    app = FastAPI(title="Ваня — локальный юридический ИИ", lifespan=lifespan)
+    app = FastAPI(title="ЛексЛок — локальный юридический ИИ", lifespan=lifespan)
 
     # --- статика ---------------------------------------------------------------
 
@@ -198,7 +198,7 @@ def create_app(config: Any | None = None) -> FastAPI:
         if req.filename:
             _checked_path(workspace, req.filename)
         try:
-            result = vanya_scenarios.fill_contract(req.filename or None, req.out_name)
+            result = lexlock_scenarios.fill_contract(req.filename or None, req.out_name)
         except Exception as exc:
             raise _scenario_error(str(exc)) from exc
         if not result.get("ok", True):
@@ -213,7 +213,7 @@ def create_app(config: Any | None = None) -> FastAPI:
     def scenario_risks(req: RisksRequest):
         _checked_path(workspace, req.filename)
         try:
-            return vanya_scenarios.find_risks(req.filename)
+            return lexlock_scenarios.find_risks(req.filename)
         except Exception as exc:
             raise _scenario_error(str(exc)) from exc
 
@@ -221,7 +221,7 @@ def create_app(config: Any | None = None) -> FastAPI:
     def scenario_export_risks(req: RisksRequest):
         _checked_path(workspace, req.filename)
         try:
-            return vanya_scenarios.export_risks(req.filename)
+            return lexlock_scenarios.export_risks(req.filename)
         except Exception as exc:
             raise _scenario_error(str(exc)) from exc
 
@@ -231,7 +231,7 @@ def create_app(config: Any | None = None) -> FastAPI:
         if not req.question.strip():
             raise HTTPException(status_code=400, detail="вопрос пустой")
         try:
-            return vanya_scenarios.ask(req.filename, req.question)
+            return lexlock_scenarios.ask(req.filename, req.question)
         except Exception as exc:
             raise _scenario_error(str(exc)) from exc
 
@@ -239,7 +239,7 @@ def create_app(config: Any | None = None) -> FastAPI:
     def scenario_checklist(req: ChecklistRequest):
         _checked_path(workspace, req.filename)
         try:
-            return vanya_scenarios.check_contract(req.filename, req.contract_type)
+            return lexlock_scenarios.check_contract(req.filename, req.contract_type)
         except Exception as exc:
             raise _scenario_error(str(exc)) from exc
 
@@ -251,7 +251,7 @@ def create_app(config: Any | None = None) -> FastAPI:
         def run_agent() -> None:
             # работаем в потоке, чтобы uvicorn не блокировался генератором Agent.run
             try:
-                agent = vanya_agent.Agent(llm=llm)
+                agent = lexlock_agent.Agent(llm=llm)
                 for event in agent.run(message, history):
                     q.put(("event", event))
             except Exception as exc:  # SSE не должен падать: ошибку шлём как событие
@@ -295,5 +295,5 @@ def create_app(config: Any | None = None) -> FastAPI:
 app = create_app()
 
 if __name__ == "__main__":
-    cfg = vanya_config.load_config()
+    cfg = lexlock_config.load_config()
     uvicorn.run(app, host="127.0.0.1", port=cfg.port)

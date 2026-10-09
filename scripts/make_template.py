@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Создаёт templates/dogovor_template.docx — шаблон договора возмездного оказания услуг.
 
-Самодостаточен: использует python-docx напрямую, не импортирует vanya.
+Самодостаточен: использует python-docx напрямую, не импортирует lexlock.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 from docx.shared import Mm, Pt
 
-# Копия FIELDS из SPEC §2.5 (vanya/extract.py) — ключи плейсхолдеров берутся строго отсюда.
+# Копия FIELDS из SPEC §2.5 (lexlock/extract.py) — ключи плейсхолдеров берутся строго отсюда.
 FIELDS = (
     "familiya", "imya", "otchestvo", "fio", "data_rozhdeniya", "pasport_seriya", "pasport_nomer",
     "pasport_vydan", "pasport_data", "pasport_kod", "adres_registracii", "inn", "ogrn", "kpp",

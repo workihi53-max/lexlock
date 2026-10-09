@@ -34,7 +34,7 @@ class Agent:
         self.system = system if system is not None else prompts.SYSTEM_PROMPT
 
     def run(self, user_message: str, history: list[dict] | None = None) -> Iterator[Event]:
-        yield Event("status", {"message": "Ваня приступил к работе"})
+        yield Event("status", {"message": "ЛексЛок приступил к работе"})
 
         messages: list[dict] = []
         if self.system:

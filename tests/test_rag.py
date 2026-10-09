@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from vanya.rag import select_relevant, split_blocks
+from lexlock.rag import select_relevant, split_blocks
 
 
 def test_short_text_unchanged():

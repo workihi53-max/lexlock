@@ -1,48 +1,48 @@
-# Установщики «Вани»
+# Установщики «ЛексЛока»
 
 Цель упаковки — чтобы **юрист без опыта** скачал один файл и запустил приложение,
 ни разу не открыв терминал (см. «Принципы установки» в `AGENTS.md`).
 
 | Система | Файл | Как ставит пользователь | Сборка |
 |---|---|---|---|
-| macOS | `Vanya-<версия>.dmg` | открыть `.dmg` → перетащить «Ваня» в «Программы» → запустить | `bash packaging/macos/build_dmg.sh` |
-| Linux | `Vanya-<версия>-<арх>.AppImage` | сделать файл исполняемым → двойной клик | `bash packaging/linux/build_appimage.sh` |
-| Windows | `Vanya-<версия>-win-setup.exe` | обычный установщик с кнопкой «Далее» | `iscc packaging/windows/installer.iss` |
+| macOS | `LexLock-<версия>.dmg` | открыть `.dmg` → перетащить «ЛексЛок» в «Программы» → запустить | `bash packaging/macos/build_dmg.sh` |
+| Linux | `LexLock-<версия>-<арх>.AppImage` | сделать файл исполняемым → двойной клик | `bash packaging/linux/build_appimage.sh` |
+| Windows | `LexLock-<версия>-win-setup.exe` | обычный установщик с кнопкой «Далее» | `iscc packaging/windows/installer.iss` |
 
 Первый запуск скачивает Ollama и модель (~2 ГБ) — дальше приложение работает офлайн.
 
 ## macOS — настоящий `.app`, без терминала
 
-`build_dmg.sh` собирает `Ваня.app` (нативные диалоги через `osascript`) и красивый `.dmg`
+`build_dmg.sh` собирает `ЛексЛок.app` (нативные диалоги через `osascript`) и красивый `.dmg`
 с ярлыком «Программы» для перетаскивания. Пользователь видит только диалоги:
 «Продолжить» → уведомление об установке → автоматически открывается браузер.
-Журнал установки: `~/Library/Logs/Vanya.log`. Проект разворачивается в
-`~/Library/Application Support/Vanya` (бандл `.app` может быть read-only).
+Журнал установки: `~/Library/Logs/LexLock.log`. Проект разворачивается в
+`~/Library/Application Support/LexLock` (бандл `.app` может быть read-only).
 
 **Первый запуск и Gatekeeper.** Приложение пока не подписано Apple, поэтому при первом
 запуске macOS может сказать «не удалось проверить разработчика». Нужно один раз нажать на
-«Ваня» правой кнопкой → «Открыть» → «Открыть». Это же написано в файле «Как открыть.txt»
+«ЛексЛок» правой кнопкой → «Открыть» → «Открыть». Это же написано в файле «Как открыть.txt»
 внутри `.dmg`. После подписи/нотаризации шаг исчезнет.
 
 ```bash
-bash packaging/macos/build_dmg.sh   # → dist/Vanya-0.2.0.dmg
+bash packaging/macos/build_dmg.sh   # → dist/LexLock-0.2.0.dmg
 ```
 
 ## Linux — AppImage с диалогами
 
 `AppRun` показывает прогресс через `zenity`/`kdialog` (если есть в системе), ставит
-компоненты и сам открывает браузер. Проект разворачивается в `~/vanya-legal-vault`.
+компоненты и сам открывает браузер. Проект разворачивается в `~/lexlock`.
 
 ```bash
-bash packaging/linux/build_appimage.sh   # → dist/Vanya-0.2.0-x86_64.AppImage
-chmod +x Vanya-0.2.0-x86_64.AppImage && ./Vanya-0.2.0-x86_64.AppImage
+bash packaging/linux/build_appimage.sh   # → dist/LexLock-0.2.0-x86_64.AppImage
+chmod +x LexLock-0.2.0-x86_64.AppImage && ./LexLock-0.2.0-x86_64.AppImage
 ```
 
 ## Windows — установщик с ярлыками, сервер без консоли
 
 Inno Setup копирует файлы и запускает установку компонентов **скрыто** (сообщение на
 экране прогресса). Ярлыки запускают `run.vbs`: сервер стартует без чёрного окна, браузер
-открывается сам. Журнал: `vanya.log` рядом с приложением.
+открывается сам. Журнал: `lexlock.log` рядом с приложением.
 
 ```cmd
 iscc packaging\windows\installer.iss

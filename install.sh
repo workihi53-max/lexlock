@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Первичная установка «Вани» — одна команда. Интернет нужен один раз:
+# Первичная установка «ЛексЛока» — одна команда. Интернет нужен один раз:
 # ставятся uv, Ollama, зависимости Python и скачивается модель.
 #
 #   ./install.sh                # полная установка
@@ -14,8 +14,8 @@ VENV="$ROOT/.venv"
 MODEL="qwen2.5:3b"
 MODEL_EXPLICIT=0
 # Если модель задана снаружи — считаем выбор явным и авто-подбор не применяем.
-if [ -n "${VANYA_MODEL:-}" ]; then
-    MODEL="$VANYA_MODEL"
+if [ -n "${LEXLOCK_MODEL:-}" ]; then
+    MODEL="$LEXLOCK_MODEL"
     MODEL_EXPLICIT=1
 fi
 SKIP_MODEL=0
@@ -179,11 +179,11 @@ if [ "$MODEL_EXPLICIT" -eq 0 ]; then
     REC="$("$VENV/bin/python" "$ROOT/scripts/check_ram.py" --recommend 2>/dev/null || echo "$MODEL")"
     if [ -n "$REC" ] && [ "$REC" != "$MODEL" ]; then
         echo "==> Свободной ОЗУ мало — выбираю лёгкую модель $REC"
-        echo "    Переопределить: ./install.sh --model ИМЯ или VANYA_MODEL"
+        echo "    Переопределить: ./install.sh --model ИМЯ или LEXLOCK_MODEL"
     fi
     MODEL="$REC"
 fi
-printf '%s' "$MODEL" > "$ROOT/.vanya_model"
+printf '%s' "$MODEL" > "$ROOT/.lexlock_model"
 echo "    Модель: $MODEL"
 
 echo "==> Проверка ресурсов (предупреждение не останавливает установку)"

@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "vanya"
+name = "lexlock"
 version = "0.2.2"
 description = "Локальный офлайн-ассистент для юристов (Legal AI Vault)"
 readme = "README.md"
@@ -26,7 +26,7 @@ ocr = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["vanya*", "app*"]
+include = ["lexlock*", "app*"]
 
 [tool.setuptools.package-data]
 app = ["static/*"]

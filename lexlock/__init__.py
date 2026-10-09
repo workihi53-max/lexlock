@@ -1,4 +1,4 @@
-"""Ядро «Вани» — локального юридического ассистента (полностью офлайн)."""
+"""Ядро «ЛексЛока» — локального юридического ассистента (полностью офлайн)."""
 
 from .config import Config, load_config
 from .llm import LLM, ChatResult, LLMError, ToolCall

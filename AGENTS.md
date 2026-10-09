@@ -5,7 +5,7 @@
 
 ## Что это
 
-«Ваня» — локальный офлайн ИИ-агент для юриста. Устанавливается на обычный ноутбук,
+«ЛексЛок» — локальный офлайн ИИ-агент для юриста. Устанавливается на обычный ноутбук,
 работает без интернета, обрабатывает документы под NDA и персональные данные, не
 отправляя их наружу. Демо для акселератора 2026. Подробнее об идее — `docs/00 Обзор идеи.md`.
 
@@ -54,7 +54,7 @@ Homebrew или Ollama.app; Linux: официальный скрипт), а не
 
 | Путь | Назначение |
 |---|---|
-| `vanya/` | Ядро: LLM-клиент, инструменты, агентский цикл, сценарии, извлечение реквизитов |
+| `lexlock/` | Ядро: LLM-клиент, инструменты, агентский цикл, сценарии, извлечение реквизитов |
 | `app/` | Веб-слой: FastAPI (`server.py`) и одна локальная страница (`static/index.html`) |
 | `scripts/` | Проверка ресурсов, генератор шаблона договора, тестовые данные |
 | `templates/` | Шаблон `dogovor_template.docx` с плейсхолдерами `{{ключ}}` |
@@ -69,19 +69,19 @@ Homebrew или Ollama.app; Linux: официальный скрипт), а не
 
 | Файл | Что делает |
 |---|---|
-| `vanya/config.py` | `Config` и `load_config()` — env-настройки, пути |
-| `vanya/offline.py` | `enforce_offline()` — запрет сокетов вне loopback |
-| `vanya/llm.py` | Клиент Ollama: `chat`, `stream`, `json_chat`, `health` |
-| `vanya/docs.py` | Чтение txt/md/docx/pdf, заполнение docx по `{{ключ}}` |
-| `vanya/extract.py` | `FIELDS`, `extract_requisites()` — только регулярки, без LLM |
-| `vanya/rag.py` | Подбор релевантных абзацев под запрос (RAG-lite, стемминг корней) |
-| `vanya/cache.py` | Дисковый кэш ответов LLM (`.vanya_cache`, env `VANYA_CACHE=0` отключает) |
-| `vanya/ocr.py` | Локальный OCR (Tesseract, `rus`); сканы PDF через PyMuPDF |
-| `vanya/checklists.py` | Чек-листы договоров по типам, автоопределение типа |
-| `vanya/tools.py` | 6 инструментов агента, `tool_schemas()`, `dispatch()` |
-| `vanya/agent.py` | Цикл агента: `chat` → tool calls → наблюдения → ответ |
-| `vanya/scenarios.py` | Три сценария: `fill_contract`, `find_risks`, `ask` |
-| `vanya/prompts.py` | Русские системные промпты |
+| `lexlock/config.py` | `Config` и `load_config()` — env-настройки, пути |
+| `lexlock/offline.py` | `enforce_offline()` — запрет сокетов вне loopback |
+| `lexlock/llm.py` | Клиент Ollama: `chat`, `stream`, `json_chat`, `health` |
+| `lexlock/docs.py` | Чтение txt/md/docx/pdf, заполнение docx по `{{ключ}}` |
+| `lexlock/extract.py` | `FIELDS`, `extract_requisites()` — только регулярки, без LLM |
+| `lexlock/rag.py` | Подбор релевантных абзацев под запрос (RAG-lite, стемминг корней) |
+| `lexlock/cache.py` | Дисковый кэш ответов LLM (`.lexlock_cache`, env `LEXLOCK_CACHE=0` отключает) |
+| `lexlock/ocr.py` | Локальный OCR (Tesseract, `rus`); сканы PDF через PyMuPDF |
+| `lexlock/checklists.py` | Чек-листы договоров по типам, автоопределение типа |
+| `lexlock/tools.py` | 6 инструментов агента, `tool_schemas()`, `dispatch()` |
+| `lexlock/agent.py` | Цикл агента: `chat` → tool calls → наблюдения → ответ |
+| `lexlock/scenarios.py` | Три сценария: `fill_contract`, `find_risks`, `ask` |
+| `lexlock/prompts.py` | Русские системные промпты |
 
 ## Архитектура в 10 строках
 
@@ -94,14 +94,14 @@ LLM-часть идёт в Ollama на `127.0.0.1:11434`. Агентный ча�
 graph TD
     B["Браузер 127.0.0.1:8765"] --> S["app/server.py FastAPI"]
     S --> P["static/index.html"]
-    S --> SC["vanya/scenarios.py"]
-    SC --> EX["vanya/extract.py регулярки"]
-    SC --> AG["vanya/agent.py"]
-    AG --> T["vanya/tools.py 6 инструментов"]
+    S --> SC["lexlock/scenarios.py"]
+    SC --> EX["lexlock/extract.py регулярки"]
+    SC --> AG["lexlock/agent.py"]
+    AG --> T["lexlock/tools.py 6 инструментов"]
     AG --> O["Ollama 127.0.0.1:11434 qwen2.5:3b"]
     T --> W["workspace templates samples"]
     EX --> W
-    S --> OFF["vanya/offline.py enforce_offline"]
+    S --> OFF["lexlock/offline.py enforce_offline"]
     OFF -. "блокирует всё кроме loopback" .-> NET["Интернет"]
 ```
 
@@ -115,7 +115,7 @@ graph TD
    сломает CI и чужую машину.
 4. **Никаких тяжёлых зависимостей.** Без torch, transformers, numpy. Суммарный вес
    зависимостей держим до 150 МБ: продукт ставится на 8 ГБ ОЗУ.
-5. **Модель по умолчанию `qwen2.5:3b`**, переключается через `VANYA_MODEL`.
+5. **Модель по умолчанию `qwen2.5:3b`**, переключается через `LEXLOCK_MODEL`.
 6. **Интерфейсы из `SPEC.md` §2 заморожены.** Меняешь сигнатуру — правь SPEC.md в том же
    коммите, иначе параллельные агенты и фронтенд разъедутся.
 7. **Фронтенд без CDN и внешних шрифтов.** Любая внешняя ссылка ломает офлайн и
@@ -123,13 +123,13 @@ graph TD
 
 ## Как добавить новый инструмент агента
 
-1. Написать функцию в `vanya/tools.py`, которая принимает простые аргументы и возвращает
+1. Написать функцию в `lexlock/tools.py`, которая принимает простые аргументы и возвращает
    словарь. Исключения она бросать не должна.
 2. Описать `Tool(name, description, parameters, fn)`: `description` по-русски (его читает
    модель), `parameters` это JSON Schema.
 3. Добавить `Tool` в список `TOOLS`.
 4. Покрыть тестами в `tests/test_tools.py`, включая путь с ошибкой.
-5. Если инструмент нужен и в UI: добавить сценарий в `vanya/scenarios.py`, endpoint в
+5. Если инструмент нужен и в UI: добавить сценарий в `lexlock/scenarios.py`, endpoint в
    `app/server.py` и карточку в `app/static/index.html`.
 
 Скелет:
@@ -153,7 +153,7 @@ Tool(
 
 ## Как добавить новый сценарий
 
-1. Функция в `vanya/scenarios.py` с фиксированной сигнатурой, возвращает словарь с
+1. Функция в `lexlock/scenarios.py` с фиксированной сигнатурой, возвращает словарь с
    ключом `ok` и русским `error` при неудаче.
 2. `POST /api/scenario/<имя>` в `app/server.py`, валидация имени файла через
    `safe_workspace_path`.
@@ -164,7 +164,7 @@ Tool(
 
 | Что | Где |
 |---|---|
-| Имя модели | переменная `VANYA_MODEL`, значение по умолчанию в `vanya/config.py` |
+| Имя модели | переменная `LEXLOCK_MODEL`, значение по умолчанию в `lexlock/config.py` |
 | Оценка требуемой ОЗУ | `scripts/check_ram.py`, словарь `MODEL_RAM_GB` |
 | Документация | `docs/02 Модель и железо.md` |
 | Лицензия | если модель не Apache 2.0, это вопрос к юристу, а не к коду |
@@ -183,9 +183,9 @@ Tool(
 Живой прогон с моделью (нужна запущенная Ollama):
 
 ```bash
-VANYA_WORKSPACE=$(mktemp -d) cp samples/* "$VANYA_WORKSPACE" && \
-VANYA_WORKSPACE="$VANYA_WORKSPACE" .venv/bin/python -c \
-"from vanya import scenarios; print(scenarios.fill_contract()); print(scenarios.ask('01_pasospiska.txt','кто заказчик?') if False else '')"
+LEXLOCK_WORKSPACE=$(mktemp -d) cp samples/* "$LEXLOCK_WORKSPACE" && \
+LEXLOCK_WORKSPACE="$LEXLOCK_WORKSPACE" .venv/bin/python -c \
+"from lexlock import scenarios; print(scenarios.fill_contract()); print(scenarios.ask('01_pasospiska.txt','кто заказчик?') if False else '')"
 ```
 
 ## Известные ограничения и грабли
@@ -222,12 +222,16 @@ VANYA_WORKSPACE="$VANYA_WORKSPACE" .venv/bin/python -c \
 - **`git`-фильтр `on.push.tags` не спасает от невалидного workflow**: невалидный файл
   даёт «красный» запуск без шагов. Сначала локально проверяем YAML/синтаксис.
 - **Токен в чате = утечка.** Пат-токены из переписки отзывать; для заливки без git
-  использовали GitHub API (`~/.local/bin/vanya_push.py`), токен держим в файле `600`.
+  использовали GitHub API (`~/.local/bin/lexlock_push.py`), токен держим в файле `600`.
 - **Установщики «тонкие»**: первый запуск требует интернет (Ollama+модель). Полностью
   офлайн-установки пока нет — это осознанное ограничение, не баг.
+- **Скрипты в `packaging/windows/` — это не корень проекта.** `.venv`, `pyproject.toml`,
+  `.lexlock_model` лежат двумя уровнями выше. Раньше `install.ps1`/`run.vbs`/`run.bat`
+  брали `..` и создавали venv внутри `packaging\windows`, после чего запуск падал с
+  «модуль app не найден». Правильно — искать корень вверх до `pyproject.toml`.
 - **Нельзя ставить `.venv` внутрь `.app`.** macOS запускает скачанное приложение из
   read-only каталога (Gatekeeper translocation), и установка молча падает. Правильно —
-  разворачивать проект в `~/Library/Application Support/Vanya` (так делает лаунчер).
+  разворачивать проект в `~/Library/Application Support/LexLock` (так делает лаунчер).
 - **Gatekeeper блокирует неподписанный `.app`** (quarantine от браузера). Для пользователя
   это выглядит как «не открывается». Лечится правым кликом → «Открыть» (один раз) или
   подписью/нотаризацией. В `.dmg` кладём файл «Как открыть.txt».
@@ -243,14 +247,14 @@ VANYA_WORKSPACE="$VANYA_WORKSPACE" .venv/bin/python -c \
    вместо обрезки по длине (`find_risks`, `ask`). Полноценный индекс по нескольким
    документам — ещё нет.
 2. ✅ LLM-fallback к регуляркам: ненайденные поля дозаполняет модель и они попадают
-   в `model_fields` (флаг `VANYA_LLM_EXTRACT`, по умолчанию в `run.sh` включён).
+   в `model_fields` (флаг `LEXLOCK_LLM_EXTRACT`, по умолчанию в `run.sh` включён).
 3. ✅ Кэш ответов по хешу модели/документа/вопроса (`cache.py`), повтор мгновенный.
 4. ✅ Экспорт отчёта о рисках в `.docx` (`export_risks`, кнопка «Экспорт в Word»).
 5. Чек-лист рисков по типам договоров вместо свободного рассуждения модели.
 6. ✅ OCR для PDF-сканов и изображений: локальный Tesseract (`rus`), `ocr.py`,
    `pymupdf` extra; если OCR нет — приложение работает как раньше.
 7. ✅ Визард модели: `check_ram.py --recommend` и авто-выбор в `install.sh`
-   (`qwen2.5:1.5b` на слабой ОЗУ), выбор сохраняется в `.vanya_model`.
+   (`qwen2.5:1.5b` на слабой ОЗУ), выбор сохраняется в `.lexlock_model`.
 8. Бенчмарк качества на русских юридических документах с фиксацией точности извлечения.
 9. ✅ Установщики: `.dmg` (macOS), AppImage (Linux), Inno Setup (Windows), автосборка
    по тегу `v*` в `release.yml`. Полностью офлайн-установка (без первого скачивания) — нет.
@@ -274,7 +278,7 @@ VANYA_WORKSPACE="$VANYA_WORKSPACE" .venv/bin/python -c \
   Linux: официальный скрипт), понятные сообщения вместо жёсткого отказа. Проверено:
   `bash -n`, тесты 112/112.
 - 2026-10-03 — `bootstrap.sh`: установка одной командой без git (скачивает tarball
-  ветки, ставит проект в `$VANYA_DIR`, пробрасывает флаги в `install.sh`).
+  ветки, ставит проект в `$LEXLOCK_DIR`, пробрасывает флаги в `install.sh`).
 - 2026-10-03 — `run.sh`: ищет Ollama в `Ollama.app`/Homebrew, сам открывает браузер,
   флаг `--no-browser`.
 - 2026-10-03 — `scripts/check_ram.py`: поддержка macOS (`hw.memsize`, `vm_stat`,
@@ -283,10 +287,10 @@ VANYA_WORKSPACE="$VANYA_WORKSPACE" .venv/bin/python -c \
 - 2026-10-03 — сквозная проверка на чистой macOS (8 ГБ): `./install.sh` сам поставил
   Ollama в `~/Applications/Ollama.app`, скачал `qwen2.5:3b`, `EXIT=0`; модель ответила,
   `/api/health` вернул `ok:true, model_installed:true, offline:true`.
-- 2026-10-03 — `vanya/rag.py`: RAG-lite, подбор релевантных абзацев под запрос со
+- 2026-10-03 — `lexlock/rag.py`: RAG-lite, подбор релевантных абзацев под запрос со
   стеммингом корней; подключён в `find_risks` и `ask` вместо обрезки по длине.
-- 2026-10-03 — `vanya/cache.py`: дисковый кэш успешных ответов LLM (ключ — модель +
-  текст + вопрос), `VANYA_CACHE=0` отключает. `find_risks`/`ask` теперь возвращают
+- 2026-10-03 — `lexlock/cache.py`: дисковый кэш успешных ответов LLM (ключ — модель +
+  текст + вопрос), `LEXLOCK_CACHE=0` отключает. `find_risks`/`ask` теперь возвращают
   `cached: bool`.
 - 2026-10-03 — `app/server.py`: лимит 25 МБ на загружаемый файл (413), запись только
   после проверки всех файлов.
@@ -295,17 +299,17 @@ VANYA_WORKSPACE="$VANYA_WORKSPACE" .venv/bin/python -c \
 - 2026-10-03 — `docs.write_risk_report` + `scenarios.export_risks` + endpoint
   `/api/scenario/export_risks` и кнопка «Экспорт в Word»: отчёт о рисках в `.docx`.
 - 2026-10-03 — `check_ram.py --recommend` + `install.sh`: авто-выбор модели по ОЗУ
-  (`qwen2.5:1.5b` на слабой машине), выбор пишется в `.vanya_model` и читается `run.sh`.
+  (`qwen2.5:1.5b` на слабой машине), выбор пишется в `.lexlock_model` и читается `run.sh`.
 - 2026-10-03 — `fill_contract`: дозаполнение ненайденных полей моделью при
-  `VANYA_LLM_EXTRACT=1` (в `run.sh` включено, в тестах выключено), поле `model_fields`.
+  `LEXLOCK_LLM_EXTRACT=1` (в `run.sh` включено, в тестах выключено), поле `model_fields`.
 - 2026-10-03 — `packaging/`: `.dmg` (macOS, проверен локально), AppImage (Linux),
   PowerShell + Inno Setup (Windows). Автосборка по тегу `v*` в `release.yml`.
 - 2026-10-03 — тесты: +8 (export_risks, LLM-дозаполнение, recommend) → 132 зелёных.
-- 2026-10-03 — `vanya/ocr.py` + `docs.read_document`: локальный OCR Tesseract (`rus`)
+- 2026-10-03 — `lexlock/ocr.py` + `docs.read_document`: локальный OCR Tesseract (`rus`)
   для изображений и PDF-сканов через PyMuPDF (extra `[ocr]`). `install.sh` ставит
   tesseract+русский (brew/apt) и extra `[ocr]`; флаг `--no-ocr` отключает.
   Живая проверка: скан PDF «Аренда помещения / Арендная плата 50 000 рублей» распознан.
-- 2026-10-03 — `vanya/checklists.py`: чек-листы договоров (услуги, поставка, аренда,
+- 2026-10-03 — `lexlock/checklists.py`: чек-листы договоров (услуги, поставка, аренда,
   подряд, заём, конфиденциальность), автоопределение типа; сценарий `check_contract`,
   endpoint `/api/scenario/checklist`, карточка «Чек-лист договора» в интерфейсе.
 - 2026-10-03 — `release.yml`: условная подпись/нотаризация (Apple) и подпись Windows
@@ -317,14 +321,28 @@ VANYA_WORKSPACE="$VANYA_WORKSPACE" .venv/bin/python -c \
   Windows `.exe` (jobs macos/linux/windows/release — success) и опубликовал в Releases.
   Исправление: `secrets` нельзя использовать в `if` — перенесено в `env` job'а;
   `appimagetool` больше не попадает в ассеты (качается во временный каталог).
-- 2026-10-03 — установщики сделаны «для людей»: macOS — настоящий `Ваня.app` в `.dmg`
+- 2026-10-03 — установщики сделаны «для людей»: macOS — настоящий `ЛексЛок.app` в `.dmg`
   с перетаскиванием в «Программы» и нативными диалогами; Linux AppImage — прогресс через
   zenity/kdialog и авто-открытие браузера; Windows — установка скрыта, запуск через
   `run.vbs` без консоли. Версия 0.2.0. Принципы и грабли — в разделах выше.
 - 2026-10-03 — релиз `v0.2.0` собран и опубликован (macos/linux/windows/release —
-  success): `Vanya-0.2.0.dmg`, `Vanya-0.2.0-x86_64.AppImage`, `Vanya-0.2.0-win-setup.exe`.
+  success): `LexLock-0.2.0.dmg`, `LexLock-0.2.0-x86_64.AppImage`, `LexLock-0.2.0-win-setup.exe`.
 - 2026-10-03 — системный промт агента усилен: кто он, задача, жёсткое «отвечай только
   на русском»; добавлена страховка `needs_russian_retry` — если ответ на CJK без
   кириллицы, агент один раз переспрашивает по-русски. ASK/RISK-промты тоже требуют
   русский язык. Версия 0.2.2.
+- 2026-10-09 — синхронизация с GitHub: локальная ветка приведена к `origin/main`
+  (`08ccd73`, релиз 0.2.2); origin переведён на HTTPS (SSH к GitHub недоступен).
+- 2026-10-09 — переименование «Ваня» → «ЛексЛок»: пакет `vanya/`→`lexlock/`,
+  `VANYA_*`→`LEXLOCK_*`, `.vanya_model`→`.lexlock_model`, `.vanya_cache`→`.lexlock_cache`,
+  артефакты `LexLock-*`, README/доки/установщики. Проверено: 147/147 тестов.
+- 2026-10-09 — fix(windows): `install.ps1`, `run.vbs`, `run.bat` лежат в
+  `packaging\windows`, но искали `.venv`/`pyproject.toml` рядом с собой. Теперь корень
+  ищется вверх до `pyproject.toml`; venv, лог и `.lexlock_model` — в корне проекта;
+  в PATH процесса добавляются каталоги Ollama. В `installer.iss` добавлен
+  `InfoBeforeFile` с честным предупреждением про интернет при установке.
+- 2026-10-09 — README переписан под актуал: убран раздел «Структура репозитория»,
+  добавлены скриншот интерфейса и схема продукта (`docs/assets/`, `docs/08 Схема продукта.md`).
+- 2026-10-09 — `bootstrap.sh`: слаг `workihi53-max/lexlock` с откатом на старое имя
+  `vanya-legal-vault` и ветку `master` — установка не сломается до переименования репозитория.
 

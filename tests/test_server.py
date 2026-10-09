@@ -1,4 +1,4 @@
-"""Тесты веб-слоя: без Ollama, функции vanya замоканы через monkeypatch."""
+"""Тесты веб-слоя: без Ollama, функции lexlock замоканы через monkeypatch."""
 
 from __future__ import annotations
 
@@ -45,8 +45,8 @@ def cfg(tmp_path):
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    monkeypatch.setattr(server.vanya_llm, "LLM", FakeLLM)
-    monkeypatch.setattr(server.vanya_offline, "enforce_offline", lambda: None)
+    monkeypatch.setattr(server.lexlock_llm, "LLM", FakeLLM)
+    monkeypatch.setattr(server.lexlock_offline, "enforce_offline", lambda: None)
     app = server.create_app(make_config(tmp_path))
     with TestClient(app) as c:
         yield c
@@ -77,7 +77,7 @@ def test_root_serves_html(client):
     r = client.get("/")
     assert r.status_code == 200
     assert "text/html" in r.headers["content-type"]
-    assert "Ваня" in r.text
+    assert "ЛексЛок" in r.text
 
 
 def test_static_file_served(client):
@@ -175,7 +175,7 @@ def test_download_symlink_rejected(client, cfg, tmp_path):
 
 
 def test_scenario_rejects_traversal(client, monkeypatch):
-    monkeypatch.setattr(server, "vanya_scenarios", fake_scenarios())
+    monkeypatch.setattr(server, "lexlock_scenarios", fake_scenarios())
     for url, body in [
         ("/api/scenario/fill", {"filename": "../../etc/passwd"}),
         ("/api/scenario/risks", {"filename": "../x"}),
@@ -191,7 +191,7 @@ def test_scenario_rejects_traversal(client, monkeypatch):
 # --- сценарии --------------------------------------------------------------------
 
 def test_scenario_fill_returns_download_name(client, monkeypatch):
-    monkeypatch.setattr(server, "vanya_scenarios", fake_scenarios(
+    monkeypatch.setattr(server, "lexlock_scenarios", fake_scenarios(
         fill_contract=lambda src, out_name=None: {
             "ok": True, "out_path": "workspace/dogovor_1.docx",
             "fields": {"fio": "Иванов Иван Иванович"},
@@ -205,7 +205,7 @@ def test_scenario_fill_returns_download_name(client, monkeypatch):
 
 
 def test_scenario_fill_not_ok_is_400(client, monkeypatch):
-    monkeypatch.setattr(server, "vanya_scenarios", fake_scenarios(
+    monkeypatch.setattr(server, "lexlock_scenarios", fake_scenarios(
         fill_contract=lambda src, out_name=None: {"ok": False, "error": "нет шаблона"}))
     r = client.post("/api/scenario/fill", json={"filename": "a.txt"})
     assert r.status_code == 400
@@ -222,7 +222,7 @@ def test_scenario_fill_package_mode_without_filename(client, monkeypatch):
                 "package_mode": True, "sources": ["a.txt", "b.txt"],
                 "log": ["режим пакета"]}
 
-    monkeypatch.setattr(server, "vanya_scenarios",
+    monkeypatch.setattr(server, "lexlock_scenarios",
                         fake_scenarios(fill_contract=fake_fill))
 
     r = client.post("/api/scenario/fill", json={})
@@ -239,14 +239,14 @@ def test_scenario_fill_package_mode_without_filename(client, monkeypatch):
 
 
 def test_scenario_fill_rejects_traversal(client, monkeypatch):
-    monkeypatch.setattr(server, "vanya_scenarios", fake_scenarios())
+    monkeypatch.setattr(server, "lexlock_scenarios", fake_scenarios())
     r = client.post("/api/scenario/fill", json={"filename": "../../etc/passwd"})
     assert r.status_code == 400
     assert "путь" in r.json()["detail"]
 
 
 def test_scenario_risks(client, monkeypatch):
-    monkeypatch.setattr(server, "vanya_scenarios", fake_scenarios(
+    monkeypatch.setattr(server, "lexlock_scenarios", fake_scenarios(
         find_risks=lambda filename: {
             "ok": True, "summary": "договор рискованный", "fallback": True,
             "risks": [{"punkt": "3.1", "risk": "нет ответственности",
@@ -260,7 +260,7 @@ def test_scenario_risks(client, monkeypatch):
 
 
 def test_scenario_ask(client, monkeypatch):
-    monkeypatch.setattr(server, "vanya_scenarios", fake_scenarios(
+    monkeypatch.setattr(server, "lexlock_scenarios", fake_scenarios(
         ask=lambda filename, question: {"ok": True, "answer": "Сумма — 100 000 ₽"}))
     r = client.post("/api/scenario/ask",
                     json={"filename": "a.txt", "question": "какая сумма?"})
@@ -269,7 +269,7 @@ def test_scenario_ask(client, monkeypatch):
 
 
 def test_scenario_export_risks(client, monkeypatch):
-    monkeypatch.setattr(server, "vanya_scenarios", fake_scenarios(
+    monkeypatch.setattr(server, "lexlock_scenarios", fake_scenarios(
         export_risks=lambda filename: {
             "ok": True, "download_name": filename + "_risks.docx",
             "risks": [{"punkt": "1", "risk": "риск"}],
@@ -280,7 +280,7 @@ def test_scenario_export_risks(client, monkeypatch):
 
 
 def test_scenario_checklist(client, monkeypatch):
-    monkeypatch.setattr(server, "vanya_scenarios", fake_scenarios(
+    monkeypatch.setattr(server, "lexlock_scenarios", fake_scenarios(
         check_contract=lambda filename, contract_type=None: {
             "ok": True, "contract_type": "услуги", "score": 75,
             "items": [{"code": "cena", "item": "цена", "present": True}],
@@ -293,7 +293,7 @@ def test_scenario_checklist(client, monkeypatch):
 
 
 def test_scenario_ask_empty_question_400(client, monkeypatch):
-    monkeypatch.setattr(server, "vanya_scenarios", fake_scenarios())
+    monkeypatch.setattr(server, "lexlock_scenarios", fake_scenarios())
     r = client.post("/api/scenario/ask", json={"filename": "a.txt", "question": "  "})
     assert r.status_code == 400
 
@@ -301,7 +301,7 @@ def test_scenario_ask_empty_question_400(client, monkeypatch):
 def test_scenario_exception_is_500(client, monkeypatch):
     def boom(filename, question):
         raise RuntimeError("ядро упало")
-    monkeypatch.setattr(server, "vanya_scenarios", fake_scenarios(ask=boom))
+    monkeypatch.setattr(server, "lexlock_scenarios", fake_scenarios(ask=boom))
     r = client.post("/api/scenario/ask",
                     json={"filename": "a.txt", "question": "что?"})
     assert r.status_code == 500
@@ -319,7 +319,7 @@ def test_chat_streams_events(client, monkeypatch):
         FakeEvent("tool_result", {"name": "list_files", "result": ["a.txt"]}),
         FakeEvent("final", {"answer": "Привет"}),
     ]
-    monkeypatch.setattr(server, "vanya_agent", SimpleNamespace(
+    monkeypatch.setattr(server, "lexlock_agent", SimpleNamespace(
         Agent=lambda llm=None, max_steps=6, system=None: SimpleNamespace(
             run=lambda message, history=None: iter(events))))
     r = client.post("/api/chat", json={"message": "привет"})
@@ -332,7 +332,7 @@ def test_chat_streams_events(client, monkeypatch):
 
 def test_chat_streams_error_event(client, monkeypatch):
     events = [FakeEvent("error", {"message": "Ollama недоступна"})]
-    monkeypatch.setattr(server, "vanya_agent", SimpleNamespace(
+    monkeypatch.setattr(server, "lexlock_agent", SimpleNamespace(
         Agent=lambda llm=None, max_steps=6, system=None: SimpleNamespace(
             run=lambda message, history=None: iter(events))))
     r = client.post("/api/chat", json={"message": "привет"})
@@ -347,7 +347,7 @@ def test_chat_survives_agent_exception(client, monkeypatch):
     def boom(message, history=None):
         raise RuntimeError("ядро упало")
 
-    monkeypatch.setattr(server, "vanya_agent", SimpleNamespace(
+    monkeypatch.setattr(server, "lexlock_agent", SimpleNamespace(
         Agent=lambda llm=None, max_steps=6, system=None: SimpleNamespace(run=boom)))
     r = client.post("/api/chat", json={"message": "привет"})
     assert r.status_code == 200

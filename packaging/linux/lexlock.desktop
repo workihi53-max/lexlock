@@ -1,10 +1,10 @@
 [Desktop Entry]
 Type=Application
-Name=Ваня
+Name=ЛексЛок
 GenericName=Локальный юридический ИИ-ассистент
 Comment=Офлайн-ассистент для работы с юридическими документами
 Exec=AppRun
-Icon=vanya
+Icon=lexlock
 Terminal=false
 StartupNotify=true
 Categories=Office;Utility;

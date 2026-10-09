@@ -1,4 +1,4 @@
-# SPEC — «Ваня» (Legal AI Vault) — демо MVP
+# SPEC — «ЛексЛок» (Legal AI Vault) — демо MVP
 
 > Контракт для всех исполнителей. **Ничего в интерфейсах ниже не менять без правки этого файла.**
 > Пользовательские строки — по-русски. Идентификаторы в коде — латиницей.
@@ -8,7 +8,7 @@
 
 - Минимум: 8 ГБ ОЗУ, 4 ядра, ~6 ГБ свободного диска, без GPU.
 - Работает через Ollama на `127.0.0.1:11434` (CPU-инференс).
-- Модель по умолчанию: `qwen2.5:3b` (`VANYA_MODEL` переопределяет), лёгкая альтернатива `qwen2.5:1.5b`.
+- Модель по умолчанию: `qwen2.5:3b` (`LEXLOCK_MODEL` переопределяет), лёгкая альтернатива `qwen2.5:1.5b`.
 - Приложение обязано быть работоспособным, даже если модель недоступна: детерминированные
   сценарии (извлечение реквизитов, заполнение договора) работают без LLM.
 
@@ -26,7 +26,7 @@
 ├── .github/workflows/ci.yml   [C]   автопроверка тестов на GitHub Actions
 ├── .github/workflows/release.yml [C] сборка установщиков по тегу v*
 ├── packaging/                 [C]   .dmg (macOS), AppImage (Linux), Inno Setup (Windows)
-├── vanya/                     [A: ядро]
+├── lexlock/                     [A: ядро]
 │   ├── __init__.py
 │   ├── config.py
 │   ├── offline.py
@@ -62,26 +62,26 @@
     └── test_server.py         [B]   (FastAPI TestClient, без Ollama)
 ```
 
-Рабочее пространство пользователя (не в репо): `./workspace/` (переопределяется `VANYA_WORKSPACE`).
+Рабочее пространство пользователя (не в репо): `./workspace/` (переопределяется `LEXLOCK_WORKSPACE`).
 
 ## 2. Замороженные интерфейсы
 
-### 2.1 `vanya/config.py`
+### 2.1 `lexlock/config.py`
 
 ```python
 @dataclass(frozen=True)
 class Config:
-    model: str          # env VANYA_MODEL, default "qwen2.5:3b"
-    ollama_url: str     # env VANYA_OLLAMA_URL, default "http://127.0.0.1:11434"
-    workspace: Path     # env VANYA_WORKSPACE, default <repo>/workspace
-    port: int           # env VANYA_PORT, default 8765
-    offline: bool       # env VANYA_OFFLINE, default True (strict: блокирует не-loopback сокеты)
+    model: str          # env LEXLOCK_MODEL, default "qwen2.5:3b"
+    ollama_url: str     # env LEXLOCK_OLLAMA_URL, default "http://127.0.0.1:11434"
+    workspace: Path     # env LEXLOCK_WORKSPACE, default <repo>/workspace
+    port: int           # env LEXLOCK_PORT, default 8765
+    offline: bool       # env LEXLOCK_OFFLINE, default True (strict: блокирует не-loopback сокеты)
     max_ctx_chars: int  # default 12000 — сколько символов документов кладём в промпт
 
 def load_config() -> Config: ...
 ```
 
-### 2.2 `vanya/offline.py`
+### 2.2 `lexlock/offline.py`
 
 ```python
 def enforce_offline() -> None:
@@ -89,7 +89,7 @@ def enforce_offline() -> None:
     Иначе — ConnectionError. Идемпотентно. Вызывается из run.sh и app/server.py."""
 ```
 
-### 2.3 `vanya/llm.py`
+### 2.3 `lexlock/llm.py`
 
 ```python
 @dataclass
@@ -114,7 +114,7 @@ class LLM:
         """Просит строгий JSON, парсит первый {...} устойчиво. При неудаче — LLMError."""
 ```
 
-### 2.4 `vanya/docs.py`
+### 2.4 `lexlock/docs.py`
 
 ```python
 TEXT_EXT = {".txt", ".md", ".csv", ".json"}
@@ -128,7 +128,7 @@ def fill_docx(template: str | Path, values: dict[str, str], out_path: str | Path
 def docx_placeholders(template: str | Path) -> list[str]: ...
 ```
 
-### 2.5 `vanya/extract.py`
+### 2.5 `lexlock/extract.py`
 
 Только регулярки + нормализация, **без LLM**.
 
@@ -144,7 +144,7 @@ def extract_requisites(text: str) -> dict[str, str]:
 def missing_fields(found: dict[str, str]) -> list[str]: ...
 ```
 
-### 2.6 `vanya/tools.py`
+### 2.6 `lexlock/tools.py`
 
 ```python
 @dataclass
@@ -170,7 +170,7 @@ def dispatch(name: str, arguments: dict) -> dict:
 | `find_risks` | `{"filename": str}` | LLM-анализ рисков договора → `{"summary","risks":[...]}` |
 | `write_report` | `{"name": str, "content": str}` | сохраняет текстовый отчёт в workspace |
 
-### 2.7 `vanya/agent.py`
+### 2.7 `lexlock/agent.py`
 
 ```python
 @dataclass
@@ -188,13 +188,13 @@ class Agent:
 через `dispatch`, добавить `role="tool"` сообщения, повторить (не больше `max_steps`); иначе —
 финальный ответ. Любая ошибка LLM → `Event("error", ...)`, приложение не падает.
 
-### 2.8 `vanya/scenarios.py`
+### 2.8 `lexlock/scenarios.py`
 
 Перед отправкой в LLM документ режется не по первым `max_ctx_chars`, а через
 `rag.select_relevant(text, query, max_ctx_chars)` — подбор релевантных абзацев.
 Успешные ответы `find_risks`/`ask` кэшируются на диск (`cache.py`, ключ — хеш
 модели + текста документа + вопроса); повторный вызов мгновенный. При отключённом
-кэше (`VANYA_CACHE=0`) поведение прежнее, только без ускорения.
+кэше (`LEXLOCK_CACHE=0`) поведение прежнее, только без ускорения.
 
 ```python
 def fill_contract(source_filename: str | None = None, out_name: str | None = None) -> dict
@@ -216,7 +216,7 @@ def check_contract(filename: str, contract_type: str | None = None) -> dict
     #  "missing": [str], "score": int}  — детерминированно, без LLM
 ```
 
-Если задан `VANYA_LLM_EXTRACT=1`, `fill_contract` дозаполняет ненайденные поля
+Если задан `LEXLOCK_LLM_EXTRACT=1`, `fill_contract` дозаполняет ненайденные поля
 через LLM и возвращает их имена в `model_fields`; при недоступной модели поведение
 остаётся детерминированным (инвариант 2).
 
@@ -243,9 +243,9 @@ def check_contract(filename: str, contract_type: str | None = None) -> dict
 
 - `install.sh` — сам ставит `uv` и Ollama, если их нет (macOS: Homebrew/Ollama.app,
   Linux: официальный скрипт), затем `uv venv --python 3.12 .venv`, `uv pip install -e .`,
-  проверка ОЗУ (`scripts/check_ram.py`), `ollama pull $VANYA_MODEL` (можно `--skip-model`),
+  проверка ОЗУ (`scripts/check_ram.py`), `ollama pull $LEXLOCK_MODEL` (можно `--skip-model`),
   генерация шаблона/сэмплов. Идемпотентен. `bootstrap.sh` — установка одной командой без git.
-- `run.sh` — активирует venv, `VANYA_OFFLINE=1` по умолчанию, стартует `python -m app.server`,
+- `run.sh` — активирует venv, `LEXLOCK_OFFLINE=1` по умолчанию, стартует `python -m app.server`,
   печатает URL и открывает браузер. Флаги `--no-offline` и `--no-browser`.
 - `scripts/check_ram.py` — печатает ОЗУ/swap/диск/ядра, предупреждает при <3 ГБ свободно,
   возвращает 0/1 (1 — рискованно для запуска модели). `--recommend` печатает модель

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from vanya import docs, ocr
+from lexlock import docs, ocr
 
 
 def test_available_false_when_missing(monkeypatch):

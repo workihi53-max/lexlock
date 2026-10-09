@@ -68,7 +68,7 @@ _RISK_RULES: list[tuple[list[str], str, str, str, str]] = [
 
 def _llm_extract_enabled() -> bool:
     """Дозаполнение реквизитов моделью — опционально (по умолчанию выключено)."""
-    return os.environ.get("VANYA_LLM_EXTRACT", "0").strip().lower() in {
+    return os.environ.get("LEXLOCK_LLM_EXTRACT", "0").strip().lower() in {
         "1", "true", "yes", "on"
     }
 

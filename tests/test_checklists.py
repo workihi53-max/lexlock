@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from vanya import checklists, scenarios
+from lexlock import checklists, scenarios
 
 
 def test_detect_contract_type():
@@ -28,7 +28,7 @@ def test_evaluate_presence():
 def test_check_contract_scenario(tmp_path, monkeypatch):
     ws = tmp_path / "ws"
     ws.mkdir()
-    monkeypatch.setenv("VANYA_WORKSPACE", str(ws))
+    monkeypatch.setenv("LEXLOCK_WORKSPACE", str(ws))
     (ws / "d.txt").write_text(
         "Договор оказания услуг. Цена и срок оплаты. Акт сдачи-приёмки.",
         encoding="utf-8",
@@ -43,7 +43,7 @@ def test_check_contract_scenario(tmp_path, monkeypatch):
 def test_check_contract_explicit_type(tmp_path, monkeypatch):
     ws = tmp_path / "ws"
     ws.mkdir()
-    monkeypatch.setenv("VANYA_WORKSPACE", str(ws))
+    monkeypatch.setenv("LEXLOCK_WORKSPACE", str(ws))
     (ws / "d.txt").write_text("произвольный текст", encoding="utf-8")
     result = scenarios.check_contract("d.txt", "заём")
     assert result["contract_type"] == "заём"
@@ -52,6 +52,6 @@ def test_check_contract_explicit_type(tmp_path, monkeypatch):
 def test_check_contract_read_error(tmp_path, monkeypatch):
     ws = tmp_path / "ws"
     ws.mkdir()
-    monkeypatch.setenv("VANYA_WORKSPACE", str(ws))
+    monkeypatch.setenv("LEXLOCK_WORKSPACE", str(ws))
     result = scenarios.check_contract("нет.txt")
     assert result["ok"] is False

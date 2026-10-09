@@ -1,10 +1,10 @@
-"""Юнит-тесты извлечения реквизитов (vanya.extract)."""
+"""Юнит-тесты извлечения реквизитов (lexlock.extract)."""
 
 from __future__ import annotations
 
 import pytest
 
-from vanya import extract
+from lexlock import extract
 
 
 @pytest.mark.parametrize(
