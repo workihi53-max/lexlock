@@ -13,7 +13,7 @@ import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import uvicorn
 from fastapi import FastAPI, File, HTTPException, UploadFile
@@ -43,6 +43,7 @@ class FillRequest(BaseModel):
 
 class RisksRequest(BaseModel):
     filename: str
+    side: Literal["neutral", "customer", "contractor"] = "neutral"
 
 
 class AskRequest(BaseModel):
@@ -213,7 +214,7 @@ def create_app(config: Any | None = None) -> FastAPI:
     def scenario_risks(req: RisksRequest):
         _checked_path(workspace, req.filename)
         try:
-            return lexlock_scenarios.find_risks(req.filename)
+            return lexlock_scenarios.find_risks(req.filename, side=req.side)
         except Exception as exc:
             raise _scenario_error(str(exc)) from exc
 
@@ -221,7 +222,7 @@ def create_app(config: Any | None = None) -> FastAPI:
     def scenario_export_risks(req: RisksRequest):
         _checked_path(workspace, req.filename)
         try:
-            return lexlock_scenarios.export_risks(req.filename)
+            return lexlock_scenarios.export_risks(req.filename, side=req.side)
         except Exception as exc:
             raise _scenario_error(str(exc)) from exc
 

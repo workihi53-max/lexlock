@@ -335,3 +335,46 @@ def test_fill_contract_llm_fallback_disabled_by_default(tmp_path, monkeypatch):
     assert result["ok"] is True
     assert result["model_fields"] == []
     assert fake.calls == 0  # модель не вызывалась
+
+
+def test_risk_side_changes_prompt_and_separates_cache(tmp_path, monkeypatch):
+    ws = _ws(tmp_path, monkeypatch)
+    (ws / "dog.txt").write_text("Договор про срок оплаты.", encoding="utf-8")
+    messages_seen = []
+
+    class SideLLM:
+        def json_chat(self, messages, schema_hint=None):
+            messages_seen.append(messages)
+            return {"summary": "Проверка", "risks": [
+                {"punkt": "1", "risk": "Риск", "level": "средний",
+                 "recommendation": "Уточнить срок"}
+            ]}
+
+    monkeypatch.setattr(scenarios, "LLM", lambda config=None: SideLLM())
+    for side in ("customer", "contractor", "neutral"):
+        result = scenarios.find_risks("dog.txt", side=side)
+        assert result["side"] == side
+        assert not result["cached"]
+        assert scenarios.find_risks("dog.txt", side=side)["cached"]
+    assert len(messages_seen) == 3
+    assert "«Заказчик»" in messages_seen[0][0]["content"]
+    assert "«Исполнитель»" in messages_seen[1][0]["content"]
+    assert "Невыгодность условия сама по себе не означает незаконность" in messages_seen[0][0]["content"]
+    result = scenarios.export_risks("dog.txt", side="customer")
+    from docx import Document
+    assert "Сторона: Заказчик" in "\n".join(
+        p.text for p in Document(result["out_path"]).paragraphs
+    )
+    assert len(messages_seen) == 3
+
+
+def test_side_fallback_discloses_general_analysis(tmp_path, monkeypatch):
+    ws = _ws(tmp_path, monkeypatch)
+    (ws / "dog.txt").write_text("Неустойка", encoding="utf-8")
+    class UnavailableLLM:
+        def json_chat(self, messages, schema_hint=None):
+            raise LLMError("Нет модели")
+    monkeypatch.setattr(scenarios, "LLM", lambda config=None: UnavailableLLM())
+    result = scenarios.find_risks("dog.txt", side="contractor")
+    assert result["fallback"] and result["side"] == "contractor"
+    assert "без учёта выбранной стороны" in result["summary"]

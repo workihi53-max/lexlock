@@ -394,6 +394,13 @@
       <h2>Найти риски</h2>
       <p class="desc">Анализирует договор и возвращает список рисков с уровнями и рекомендациями.</p>
       <p class="selected-line" id="sel-risks"></p>
+      <label for="risk-side">Чьи интересы проверяем?</label>
+      <select id="risk-side">
+        <option value="neutral">Обе стороны — общий анализ</option>
+        <option value="customer">Я заказчик</option>
+        <option value="contractor">Я исполнитель</option>
+      </select>
+      <p class="desc">Риск для вашей стороны не обязательно означает нарушение закона.</p>
       <button id="btn-risks">Найти риски</button>
       <div class="result" id="risks-result"></div>
     </section>
@@ -656,10 +663,12 @@ function levelLabel(level) {
   return "низкий";
 }
 
-function renderRisks(data, out) {
-  let html = "";
+function renderRisks(data, out, filename = state.selected) {
+  const side = data.side || "neutral";
+  const labels = { neutral: "Обе стороны", customer: "Заказчик", contractor: "Исполнитель" };
+  let html = '<div class="notice">Позиция анализа: ' + esc(labels[side] || side) + '</div>';
   if (data.fallback) {
-    html += '<div class="notice">Модель недоступна — показан эвристический разбор.</div>';
+    html += '<div class="notice">Модель недоступна — показана общая эвристическая проверка без учёта выбранной стороны.</div>';
   }
   if (data.summary) {
     html += '<div class="answer">' + esc(data.summary) + "</div>";
@@ -683,10 +692,10 @@ function renderRisks(data, out) {
   }
   out.innerHTML = html;
   const exportBtn = $("btn-export-risks");
-  if (exportBtn) exportBtn.addEventListener("click", () => exportRisksDocx(exportBtn));
+  if (exportBtn) exportBtn.addEventListener("click", () => exportRisksDocx(exportBtn, filename, side));
 }
 
-async function exportRisksDocx(btn) {
+async function exportRisksDocx(btn, filename, side) {
   const out = $("risks-result");
   if (!requireSelected(out)) return;
   const label = btn.textContent;
@@ -696,7 +705,7 @@ async function exportRisksDocx(btn) {
     const r = await api("/api/scenario/export_risks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filename: state.selected }),
+      body: JSON.stringify({ filename, side }),
     });
     const data = await r.json();
     if (!data.download_name) {
@@ -752,9 +761,11 @@ $("btn-fill").addEventListener("click", () =>
 $("btn-fill-package").addEventListener("click", () =>
   runScenario($("btn-fill-package"), "/api/scenario/fill", {},
     renderFill, $("fill-result"), false));
-$("btn-risks").addEventListener("click", () =>
-  runScenario($("btn-risks"), "/api/scenario/risks", { filename: state.selected },
-    renderRisks, $("risks-result"), true));
+$("btn-risks").addEventListener("click", () => {
+  const filename = state.selected;
+  runScenario($("btn-risks"), "/api/scenario/risks", { filename, side: $("risk-side").value },
+    (data, out) => renderRisks(data, out, filename), $("risks-result"), true);
+});
 $("btn-checklist").addEventListener("click", () => {
   const body = { filename: state.selected };
   const type = $("checklist-type").value;

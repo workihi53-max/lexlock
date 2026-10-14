@@ -167,7 +167,7 @@ def dispatch(name: str, arguments: dict) -> dict:
 | `read_document` | `{"filename": str}` | текст документа из workspace |
 | `extract_requisites` | `{"filename": str}` | реквизиты из документа (детерминированно) |
 | `fill_contract` | `{"source_filename": str?, "out_name": str?}` | извлекает реквизиты и заполняет `templates/dogovor_template.docx`, кладёт в workspace. `source_filename` пустой/отсутствует → режим «пакет»: берутся ВСЕ документы workspace |
-| `find_risks` | `{"filename": str}` | LLM-анализ рисков договора → `{"summary","risks":[...]}` |
+| `find_risks` | `{"filename": str, "side"?: "neutral|customer|contractor"}` | LLM-анализ рисков договора → `{"summary","risks":[...]}` |
 | `write_report` | `{"name": str, "content": str}` | сохраняет текстовый отчёт в workspace |
 
 ### 2.7 `lexlock/agent.py`
@@ -202,12 +202,12 @@ def fill_contract(source_filename: str | None = None, out_name: str | None = Non
     #   склейка ВСЕХ документов workspace через docs.read_folder()
     # {"ok": True, "out_path": str, "fields": {...}, "missing": [...], "log": [str,...]}
     # В результат добавить "package_mode": bool и "sources": [имена использованных файлов]
-def find_risks(filename: str) -> dict
+def find_risks(filename: str, side: str = "neutral") -> dict
     # {"ok": True, "summary": str, "risks": [{"punkt","risk","level","recommendation"}], "log":[...],
     #  "fallback": bool, "cached": bool}  — если LLM недоступна, отдаёт эвристический список и fallback=True
 def ask(filename: str, question: str) -> dict
     # {"ok": True, "answer": str, "cached": bool}
-def export_risks(filename: str) -> dict
+def export_risks(filename: str, side: str = "neutral") -> dict
     # find_risks() + сохранение отчёта в .docx: {"ok": True, "out_path": str,
     #  "download_name": str, "risks": [...], "fallback": bool}
 def check_contract(filename: str, contract_type: str | None = None) -> dict
@@ -277,3 +277,7 @@ def check_contract(filename: str, contract_type: str | None = None) -> dict
 3. Сценарий `fill_contract` заполняет шаблон на тестовых данных (проверяется тестом).
 4. `python scripts/check_ram.py` корректно отрабатывает на машине с 8 ГБ.
 5. Отключённый интернет не влияет на работу приложения (strict offline не даёт утечки).
+
+### Позиция анализа рисков
+
+API risks/export_risks принимает необязательный side: neutral (по умолчанию), customer или contractor. Результат содержит side; ключ кэша включает сторону и версию промпта. Экспорт сохраняет выбранную позицию. Эвристический fallback остаётся общим и явно сообщает, что сторону не учитывает. Невыгодность условия не равна нарушению закона.

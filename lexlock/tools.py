@@ -52,8 +52,8 @@ def _fill_contract_tool(source_filename: str | None = None, out_name: str | None
     return scenarios.fill_contract(source_filename, out_name)
 
 
-def _find_risks_tool(filename: str) -> dict:
-    return scenarios.find_risks(filename)
+def _find_risks_tool(filename: str, side: str = "neutral") -> dict:
+    return scenarios.find_risks(filename, side=side)
 
 
 def _write_report_tool(name: str, content: str) -> dict:
@@ -131,6 +131,11 @@ TOOLS: list[Tool] = [
                 "filename": {
                     "type": "string",
                     "description": "Имя файла договора в рабочем пространстве",
+                },
+                "side": {
+                    "type": "string",
+                    "enum": ["neutral", "customer", "contractor"],
+                    "description": "Позиция анализа: neutral — обе стороны, customer — заказчик, contractor — исполнитель",
                 }
             },
             "required": ["filename"],

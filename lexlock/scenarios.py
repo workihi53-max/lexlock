@@ -201,10 +201,15 @@ def _heuristic_risks(text: str) -> list[dict]:
     return risks
 
 
-def find_risks(filename: str) -> dict:
+RISK_SIDES = {"neutral": "Общий анализ", "customer": "Заказчик", "contractor": "Исполнитель"}
+
+
+def find_risks(filename: str, side: str = "neutral") -> dict:
     """Анализ рисков через LLM; при недоступности модели — эвристика (fallback=True)."""
+    if side not in RISK_SIDES:
+        raise ValueError("Неизвестная сторона договора")
     cfg = load_config()
-    log = [f"Читаю документ: {filename}"]
+    log = [f"Читаю документ: {filename}", f"Сторона: {RISK_SIDES[side]}"]
     try:
         text = docs.read_document(cfg.workspace / filename)
     except Exception as exc:
@@ -217,7 +222,7 @@ def find_risks(filename: str) -> dict:
         }
 
     snippet = rag.select_relevant(text, prompts.RISK_QUERY, cfg.max_ctx_chars)
-    key = cache.make_key(cfg.model, "risks", text, str(cfg.max_ctx_chars))
+    key = cache.make_key(cfg.model, "risks", text, f"side-v1:{side}:{cfg.max_ctx_chars}")
     cached = cache.get(cfg.workspace, key)
     if cached is not None:
         log.append("Риски взяты из кэша")
@@ -225,7 +230,11 @@ def find_risks(filename: str) -> dict:
 
     llm = LLM(cfg)
     messages = [
-        {"role": "system", "content": prompts.RISK_SYSTEM_PROMPT},
+        {"role": "system", "content": prompts.RISK_SYSTEM_PROMPT + (
+            " Общий анализ: учитывай интересы обеих сторон." if side == "neutral" else
+            f" Анализируй с позиции стороны «{RISK_SIDES[side]}». Оценивай последствия и рекомендации для неё; "
+            "не считай выгодное для неё условие риском только из-за невыгодности для контрагента."
+        )},
         {"role": "user", "content": f"Проанализируй договор:\n\n{snippet}"},
     ]
     try:
@@ -234,7 +243,7 @@ def find_risks(filename: str) -> dict:
         summary = data.get("summary", "") if isinstance(data, dict) else ""
         if not risks:
             raise LLMError("Модель не вернула список рисков")
-        payload = {"ok": True, "summary": summary, "risks": risks, "fallback": False}
+        payload = {"ok": True, "summary": summary, "risks": risks, "fallback": False, "side": side}
         cache.put(cfg.workspace, key, payload)
         log.append("Риски получены от модели")
         return {**payload, "log": log, "cached": False}
@@ -242,7 +251,8 @@ def find_risks(filename: str) -> dict:
         log.append(f"Модель недоступна, использую эвристику: {exc}")
         return {
             "ok": True,
-            "summary": "Эвристический анализ (модель недоступна).",
+            "summary": "Эвристический анализ (модель недоступна). Общая проверка без учёта выбранной стороны.",
+            "side": side,
             "risks": _heuristic_risks(text),
             "log": log,
             "fallback": True,
@@ -278,9 +288,9 @@ def ask(filename: str, question: str) -> dict:
     return {**result, "cached": False}
 
 
-def export_risks(filename: str) -> dict:
+def export_risks(filename: str, side: str = "neutral") -> dict:
     """Прогоняет анализ рисков и сохраняет отчёт в .docx рядом в workspace."""
-    analysis = find_risks(filename)
+    analysis = find_risks(filename, side=side)
     if not analysis.get("ok"):
         return analysis
     cfg = load_config()
@@ -289,13 +299,14 @@ def export_risks(filename: str) -> dict:
     docs.write_risk_report(
         out_path,
         filename,
-        str(analysis.get("summary", "")),
+        f"Сторона: {RISK_SIDES[side]}. " + str(analysis.get("summary", "")),
         list(analysis.get("risks", [])),
     )
     return {
         "ok": True,
         "out_path": str(out_path),
         "download_name": out_name,
+        "side": side,
         "risks": analysis.get("risks", []),
         "fallback": analysis.get("fallback", False),
     }
