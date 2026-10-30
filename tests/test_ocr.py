@@ -35,7 +35,7 @@ def test_read_document_scanned_pdf_uses_ocr(tmp_path, monkeypatch):
     pdf = tmp_path / "scan.pdf"
     pdf.write_bytes(b"%PDF-1.4")
     monkeypatch.setattr(docs, "_read_pdf", lambda p: "")
-    monkeypatch.setattr(docs.ocr, "available", lambda: True)
+    monkeypatch.setattr(docs.ocr, "pdf_available", lambda: True)
     monkeypatch.setattr(docs.ocr, "ocr_pdf", lambda p: "OCR страницы")
     assert docs.read_document(pdf) == "OCR страницы"
 

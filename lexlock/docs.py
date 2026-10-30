@@ -49,7 +49,7 @@ def read_document(path: str | Path) -> str:
         return _read_docx(p)
     if ext == ".pdf":
         text = _read_pdf(p)
-        if ocr.needs_ocr(text) and ocr.available():
+        if ocr.needs_ocr(text) and ocr.pdf_available():
             return ocr.ocr_pdf(p)
         return text
     if ext in ocr.IMAGE_EXT:

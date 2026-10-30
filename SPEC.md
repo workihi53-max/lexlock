@@ -37,6 +37,8 @@
 │   ├── cache.py                  дисковый кэш ответов LLM
 │   ├── ocr.py                    локальный OCR (Tesseract, русский)
 │   ├── checklists.py             чек-листы договоров по типам
+│   ├── audit.py                  журнал аудита с hash-цепочкой (защита от подделки)
+│   ├── updater.py                проверка подписи и применение офлайн-обновлений
 │   ├── tools.py
 │   ├── agent.py
 │   ├── scenarios.py
@@ -47,6 +49,7 @@
 ├── scripts/                   [C]
 │   ├── check_ram.py
 │   ├── make_template.py
+│   ├── make_update.py          (подписанные пакеты обновлений .lexlock)
 │   └── demo_data.py           (наполнение templates/ и samples/)
 ├── templates/                 [C]   (генерируется scripts/make_template.py)
 │   └── dogovor_template.docx
@@ -154,11 +157,11 @@ class Tool:
     parameters: dict          # JSON Schema
     fn: Callable[..., dict]
 
-TOOLS: list[Tool]             # ровно 6 штук, см. таблицу ниже
+TOOLS: list[Tool]             # ровно 10 штук, см. таблицу ниже
 def tool_schemas() -> list[dict]: ...       # формат Ollama: {"type":"function","function":{...}}
 def dispatch(name: str, arguments: dict) -> dict:
     """Возвращает {"ok": True, "result": ...} либо {"ok": False, "error": "..."}.
-    Никогда не бросает исключение наружу."""
+    Никогда не бросает исключение наружу. Пишет запись в audit-журнал."""
 ```
 
 | name | args | что делает |
@@ -168,6 +171,10 @@ def dispatch(name: str, arguments: dict) -> dict:
 | `extract_requisites` | `{"filename": str}` | реквизиты из документа (детерминированно) |
 | `fill_contract` | `{"source_filename": str?, "out_name": str?}` | извлекает реквизиты и заполняет `templates/dogovor_template.docx`, кладёт в workspace. `source_filename` пустой/отсутствует → режим «пакет»: берутся ВСЕ документы workspace |
 | `find_risks` | `{"filename": str}` | LLM-анализ рисков договора → `{"summary","risks":[...]}` |
+| `check_contract` | `{"filename": str, "contract_type": str?}` | проверка договора по чек-листу (детерминированно) |
+| `search_documents` | `{"query": str}` | поиск фрагментов по всем документам workspace с указанием файла-источника |
+| `summarize` | `{"filename": str}` | краткое резюме документа (LLM) |
+| `compare_documents` | `{"a": str, "b": str}` | сравнение двух документов (LLM) |
 | `write_report` | `{"name": str, "content": str}` | сохраняет текстовый отчёт в workspace |
 
 ### 2.7 `lexlock/agent.py`
@@ -206,7 +213,14 @@ def find_risks(filename: str) -> dict
     # {"ok": True, "summary": str, "risks": [{"punkt","risk","level","recommendation"}], "log":[...],
     #  "fallback": bool, "cached": bool}  — если LLM недоступна, отдаёт эвристический список и fallback=True
 def ask(filename: str, question: str) -> dict
-    # {"ok": True, "answer": str, "cached": bool}
+    # {"ok": True, "answer": str, "sources": [{"filename","score","snippet"}], "cached": bool}
+def search_documents(query: str) -> dict
+    # детерминированный поиск по всем документам workspace (RAG-lite):
+    # {"ok": True, "query": str, "matches": [{"filename","score","snippet"}]}
+def summarize(filename: str) -> dict
+    # {"ok": True, "filename": str, "summary": str}  — LLM; при сбое {"ok": False, "error": ...}
+def compare_documents(a: str, b: str) -> dict
+    # {"ok": True, "a": str, "b": str, "comparison": str}  — LLM; при сбое {"ok": False, "error": ...}
 def export_risks(filename: str) -> dict
     # find_risks() + сохранение отчёта в .docx: {"ok": True, "out_path": str,
     #  "download_name": str, "risks": [...], "fallback": bool}
@@ -257,12 +271,16 @@ def check_contract(filename: str, contract_type: str | None = None) -> dict
 - `scripts/make_template.py` — создаёт `templates/dogovor_template.docx` (договор оказания
   услуг: шапка, реквизиты через `{{...}}`, разделы 1–7, подписи). Плейсхолдеры строго из `FIELDS`.
 - `scripts/demo_data.py` — создаёт `samples/*` если их нет (текст — из задач [D]).
+- `scripts/make_update.py` — собирает и подписывает пакет обновления `*.lexlock`
+  (инструмент вендора, Ed25519); `--gen-key` генерирует пару ключей. Применение на
+  клиенте — `lexlock/updater.py` (проверка подписи и sha256, офлайн, с бэкапом старых файлов).
 
 ## 3. Общие требования
 
 | Python 3.12 (venv), зависимости: `fastapi`, `uvicorn`, `httpx`, `python-docx`, `pypdf`,
-  `python-multipart`, `pytest`. OCR — `pymupdf` (extra `[ocr]`) и системный Tesseract с
-  языком `rus`. Никаких тяжёлых ML-библиотек (без torch/transformers).
+  `python-multipart`, `pytest`, `cryptography` (подпись офлайн-обновлений). OCR — `pymupdf`
+  (extra `[ocr]`) и системный Tesseract с языком `rus`. Никаких тяжёлых ML-библиотек
+  (без torch/transformers).
 - Полный набор зависимостей ≤ 150 МБ.
 - Никаких обращений в интернет из кода приложения. Только `127.0.0.1`.
 - Строки для пользователя — русские, короткие, без эмодзи в служебных сообщениях.

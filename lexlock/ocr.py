@@ -26,6 +26,17 @@ def available() -> bool:
     return tesseract_path() is not None
 
 
+def pdf_available() -> bool:
+    """True, если есть и Tesseract, и PyMuPDF (для OCR сканов PDF)."""
+    if not available():
+        return False
+    try:
+        import pymupdf  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 def _run_tesseract(image_path: str | Path, lang: str = DEFAULT_LANG) -> str:
     exe = tesseract_path()
     if not exe:

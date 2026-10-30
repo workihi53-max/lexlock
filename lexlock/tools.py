@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from . import docs, extract, scenarios
+from . import audit, docs, extract, scenarios
 from .config import load_config
 
 
@@ -60,6 +60,22 @@ def _write_report_tool(name: str, content: str) -> dict:
     cfg = load_config()
     path = docs.write_text(cfg.workspace / name, content)
     return {"name": path.name, "path": str(path)}
+
+
+def _search_documents_tool(query: str) -> dict:
+    return scenarios.search_documents(query)
+
+
+def _summarize_tool(filename: str) -> dict:
+    return scenarios.summarize(filename)
+
+
+def _compare_documents_tool(a: str, b: str) -> dict:
+    return scenarios.compare_documents(a, b)
+
+
+def _check_contract_tool(filename: str, contract_type: str | None = None) -> dict:
+    return scenarios.check_contract(filename, contract_type)
 
 
 TOOLS: list[Tool] = [
@@ -138,6 +154,66 @@ TOOLS: list[Tool] = [
         fn=_find_risks_tool,
     ),
     Tool(
+        name="check_contract",
+        description=(
+            "Проверить договор по чек-листу выбранного типа (услуги, поставка, "
+            "аренда, подряд, заём, конфиденциальность). Тип определяется "
+            "автоматически, если не указан."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "filename": {"type": "string", "description": "Имя файла договора"},
+                "contract_type": {
+                    "type": "string",
+                    "description": "Тип договора (необязательно)",
+                },
+            },
+            "required": ["filename"],
+        },
+        fn=_check_contract_tool,
+    ),
+    Tool(
+        name="search_documents",
+        description=(
+            "Искать фрагменты по всем документам рабочей папки по ключевым словам. "
+            "Возвращает совпадения с указанием файла-источника."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Поисковый запрос"},
+            },
+            "required": ["query"],
+        },
+        fn=_search_documents_tool,
+    ),
+    Tool(
+        name="summarize",
+        description="Сделать краткое резюме документа (суть, стороны, условия, суммы, риски).",
+        parameters={
+            "type": "object",
+            "properties": {
+                "filename": {"type": "string", "description": "Имя файла документа"},
+            },
+            "required": ["filename"],
+        },
+        fn=_summarize_tool,
+    ),
+    Tool(
+        name="compare_documents",
+        description="Сравнить два документа и перечислить различия по пунктам.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "a": {"type": "string", "description": "Имя первого файла"},
+                "b": {"type": "string", "description": "Имя второго файла"},
+            },
+            "required": ["a", "b"],
+        },
+        fn=_compare_documents_tool,
+    ),
+    Tool(
         name="write_report",
         description="Сохранить текстовый отчёт в рабочее пространство.",
         parameters={
@@ -176,6 +252,9 @@ def dispatch(name: str, arguments: dict) -> dict:
             try:
                 result = t.fn(**arguments)
             except Exception as exc:  # noqa: BLE001 — здесь граница, ловим всё
+                audit.record("tool", {"tool": name, "ok": False, "error": str(exc)})
                 return {"ok": False, "error": str(exc)}
+            audit.record("tool", {"tool": name, "ok": True})
             return {"ok": True, "result": result}
+    audit.record("tool", {"tool": name, "ok": False, "error": "неизвестный инструмент"})
     return {"ok": False, "error": f"Неизвестный инструмент: {name}"}

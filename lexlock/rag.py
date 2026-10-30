@@ -66,3 +66,26 @@ def select_relevant(text: str, query: str, limit_chars: int) -> str:
 
     chosen.sort(key=lambda item: item[0])
     return "\n\n".join(piece for _, piece in chosen)[:limit_chars]
+
+
+def search(text: str, query: str, limit_chars: int = 3000, top: int = 5) -> list[dict]:
+    """Возвращает список {score, snippet} — релевантные фрагменты под запрос.
+
+    Используется инструментом ``search_documents`` для поиска по всем файлам
+    рабочей папки и для цитирования источников в ответах.
+    """
+    blocks = split_blocks(text)
+    query_terms = _terms(query)
+    if not blocks or not query_terms:
+        return []
+    scored: list[tuple[int, int, str]] = []
+    for index, block in enumerate(blocks):
+        overlap = len(query_terms & _terms(block))
+        if overlap <= 0:
+            continue
+        scored.append((overlap, index, block))
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    out: list[dict] = []
+    for overlap, _index, block in scored[:top]:
+        out.append({"score": overlap, "snippet": block[:limit_chars]})
+    return out
