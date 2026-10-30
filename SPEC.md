@@ -121,7 +121,7 @@ class LLM:
 
 ```python
 TEXT_EXT = {".txt", ".md", ".csv", ".json"}
-def read_document(path: str | Path) -> str: ...            # .txt/.md/.docx/.pdf, иначе raise ValueError
+def read_document(path: str | Path) -> str: ...            # .txt/.md/.docx/.pdf/.odt, иначе raise ValueError
 def read_folder(folder: str | Path, limit_chars: int = 20000) -> str:
     """Конкатенация: '=== <имя файла> ===\n<текст>'. Нетекстовые/битые — пропускает."""
 def write_text(path: str | Path, content: str) -> Path: ...

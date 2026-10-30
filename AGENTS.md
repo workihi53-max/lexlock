@@ -372,4 +372,7 @@ LEXLOCK_WORKSPACE="$LEXLOCK_WORKSPACE" .venv/bin/python -c \
 - 2026-10-30 — docs: `docs/11 Критика Экватора.md` (разбор замечаний), README/SPEC обновлены.
   Тесты: 161/161 зелёных. Живой прогон на `qwen2.5:1.5b`: agent сам вызвал `find_risks` и
   `search_documents`; updater подпись→проверка→применение→отклонение подделки работает.
+- 2026-10-30 — fix(docs/ui): поддержка `.odt` (OpenDocument) в `docs.read_document` через
+  `content.xml` (stdlib, без зависимостей); `renderAsk` больше не прячет реальную ошибку
+  («Пустой ответ модели» показывался вместо причины) и выводит источники-цитаты. 162/162.
 

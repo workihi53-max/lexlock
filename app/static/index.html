@@ -718,11 +718,20 @@ async function exportRisksDocx(btn) {
 }
 
 function renderAsk(data, out) {
+  if (data.ok === false || data.error) {
+    showError(out, data.error || "Не удалось получить ответ.");
+    return;
+  }
   if (!data.answer) {
     showError(out, "Пустой ответ модели.");
     return;
   }
-  out.innerHTML = '<div class="answer">' + esc(data.answer) + "</div>";
+  let html = '<div class="answer">' + esc(data.answer) + "</div>";
+  if (data.sources && data.sources.length) {
+    const files = [...new Set(data.sources.map((s) => s.filename))];
+    html += '<div class="src-line">Источники: ' + files.map(esc).join(", ") + "</div>";
+  }
+  out.innerHTML = html;
 }
 
 function renderChecklist(data, out) {

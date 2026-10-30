@@ -12,6 +12,8 @@ from . import ocr
 
 TEXT_EXT = {".txt", ".md", ".csv", ".json"}
 _DOCX_PDF_EXT = {".docx", ".pdf"}
+ODT_EXT = {".odt"}
+_ODT_NS = "{urn:oasis:names:tc:opendocument:xmlns:text:1.0}"
 _PLACEHOLDER_RE = re.compile(r"\{\{\s*([^{}]+?)\s*\}\}")
 
 
@@ -39,14 +41,60 @@ def _read_pdf(path: Path) -> str:
     return "\n".join(parts)
 
 
+def _odt_text(el) -> str:
+    """Собирает текст узла, учитывая <text:s/> (пробел), <text:tab/>, <text:line-break/>."""
+    chunks: list[str] = []
+
+    def walk(node) -> None:
+        if node.text:
+            chunks.append(node.text)
+        for child in node:
+            if child.tag == _ODT_NS + "s":
+                count = child.get(_ODT_NS + "c") or "1"
+                try:
+                    chunks.append(" " * int(count))
+                except ValueError:
+                    chunks.append(" ")
+            elif child.tag == _ODT_NS + "tab":
+                chunks.append("\t")
+            elif child.tag == _ODT_NS + "line-break":
+                chunks.append("\n")
+            else:
+                walk(child)
+            if child.tail:
+                chunks.append(child.tail)
+
+    walk(el)
+    return "".join(chunks)
+
+
+def _read_odt(path: Path) -> str:
+    """Читает .odt (OpenDocument): текст лежит в content.xml внутри zip."""
+    import zipfile
+    from xml.etree import ElementTree
+
+    with zipfile.ZipFile(path) as zf:
+        xml = zf.read("content.xml")
+    root = ElementTree.fromstring(xml)
+    parts: list[str] = []
+    for el in root.iter():
+        if el.tag in (_ODT_NS + "p", _ODT_NS + "h"):
+            text = _odt_text(el).strip()
+            if text:
+                parts.append(text)
+    return "\n".join(parts)
+
+
 def read_document(path: str | Path) -> str:
-    """Читает .txt/.md/.csv/.json/.docx/.pdf и изображения (OCR); иначе ValueError."""
+    """Читает .txt/.md/.csv/.json/.docx/.pdf/.odt и изображения (OCR); иначе ValueError."""
     p = Path(path)
     ext = p.suffix.lower()
     if ext in TEXT_EXT:
         return p.read_text(encoding="utf-8", errors="replace")
     if ext == ".docx":
         return _read_docx(p)
+    if ext == ".odt":
+        return _read_odt(p)
     if ext == ".pdf":
         text = _read_pdf(p)
         if ocr.needs_ocr(text) and ocr.pdf_available():
@@ -67,7 +115,7 @@ def read_folder(folder: str | Path, limit_chars: int = 20000) -> str:
     for item in sorted(f.iterdir()):
         if not item.is_file():
             continue
-        if item.suffix.lower() not in (TEXT_EXT | _DOCX_PDF_EXT | ocr.IMAGE_EXT):
+        if item.suffix.lower() not in (TEXT_EXT | _DOCX_PDF_EXT | ODT_EXT | ocr.IMAGE_EXT):
             continue
         try:
             text = read_document(item)
