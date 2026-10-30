@@ -379,4 +379,8 @@ LEXLOCK_WORKSPACE="$LEXLOCK_WORKSPACE" .venv/bin/python -c \
   вместо «Готово.»/«Модель недоступна»/падения; `find_risks` при ошибке чтения отдаёт поле
   `error`; неподдерживаемый формат (`.doc`/`.rtf` и др.) даёт понятное сообщение
   «пересохраните в .docx». 164/164.
+- 2026-10-30 — release `v0.3.0`: версия поднята до 0.3.0 (pyproject + Inno Setup). В сборки
+  macOS/Linux добавлены исключения приватных каталогов (заявка/ошибочки/promo-video), иконка
+  `.icns` переименована из `vanja` в `lexlock`. Тег `v0.3.0` запускает release-workflow
+  (`.dmg`, `.AppImage`, `.exe`).
 
