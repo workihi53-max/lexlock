@@ -383,4 +383,7 @@ LEXLOCK_WORKSPACE="$LEXLOCK_WORKSPACE" .venv/bin/python -c \
   macOS/Linux добавлены исключения приватных каталогов (заявка/ошибочки/promo-video), иконка
   `.icns` переименована из `vanja` в `lexlock`. Тег `v0.3.0` запускает release-workflow
   (`.dmg`, `.AppImage`, `.exe`).
+- 2026-10-30 — docs(media): видеопрезентация в README — `docs/assets/lexlock-demo.mp4`
+  (1080p H.264, 1.7 МБ, из исходного 4K HEVC MOV 66 МБ) + постер с кнопкой play; сборки
+  macOS/Linux исключают `docs/`, чтобы видео не попадало в установщики.
 

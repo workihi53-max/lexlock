@@ -24,7 +24,7 @@ rsync -a \
     --exclude '__pycache__' --exclude '*.pyc' --exclude '.pytest_cache' \
     --exclude '.lexlock_model' --exclude '*.egg-info' \
     --exclude 'заявка' --exclude 'ошибочки' --exclude 'promo-video' \
-    --exclude 'demo_qr.png' --exclude '*.log' \
+    --exclude 'demo_qr.png' --exclude '*.log' --exclude 'docs' \
     "$ROOT/" "$APPDIR/app/"
 
 cat > "$APPDIR/AppRun" <<'EOF'
