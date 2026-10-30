@@ -203,6 +203,14 @@ def test_find_risks_fallback_no_keywords(tmp_path, monkeypatch):
     assert len(result["risks"]) == 1  # общий пункт «явных рисков нет»
 
 
+def test_find_risks_read_error_has_error_field(tmp_path, monkeypatch):
+    _ws(tmp_path, monkeypatch)
+    result = scenarios.find_risks("nope.txt")
+    assert result["ok"] is False
+    assert "error" in result
+    assert result["risks"] == []
+
+
 def test_ask_llm_failure_returns_error(tmp_path, monkeypatch):
     ws = _ws(tmp_path, monkeypatch)
     (ws / "dog.txt").write_text("текст договора", encoding="utf-8")

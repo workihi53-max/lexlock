@@ -210,6 +210,7 @@ def find_risks(filename: str) -> dict:
     except Exception as exc:
         return {
             "ok": False,
+            "error": f"Не удалось прочитать документ: {exc}",
             "summary": "",
             "risks": [],
             "log": [f"Ошибка чтения документа: {exc}"],

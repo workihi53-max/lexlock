@@ -107,6 +107,13 @@ def test_read_unsupported_raises(tmp_path):
         docs.read_document(p)
 
 
+def test_read_old_doc_gives_docx_hint(tmp_path):
+    p = tmp_path / "old.doc"
+    p.write_bytes(b"\xd0\xcf\x11\xe0")
+    with pytest.raises(ValueError, match="docx"):
+        docs.read_document(p)
+
+
 def test_read_folder(tmp_path):
     (tmp_path / "a.txt").write_text("текст A", encoding="utf-8")
     (tmp_path / "b.md").write_text("текст B", encoding="utf-8")

@@ -73,8 +73,11 @@ def _read_odt(path: Path) -> str:
     import zipfile
     from xml.etree import ElementTree
 
-    with zipfile.ZipFile(path) as zf:
-        xml = zf.read("content.xml")
+    try:
+        with zipfile.ZipFile(path) as zf:
+            xml = zf.read("content.xml")
+    except (zipfile.BadZipFile, KeyError) as exc:
+        raise ValueError("Файл .odt повреждён или пуст") from exc
     root = ElementTree.fromstring(xml)
     parts: list[str] = []
     for el in root.iter():
@@ -102,7 +105,11 @@ def read_document(path: str | Path) -> str:
         return text
     if ext in ocr.IMAGE_EXT:
         return ocr.ocr_image(p)
-    raise ValueError(f"Неподдерживаемый формат файла: {ext or 'без расширения'}")
+    hint = " Пересохраните документ в .docx." if ext in {".doc", ".rtf"} else ""
+    raise ValueError(
+        f"Формат {ext or 'без расширения'} не поддерживается.{hint} "
+        "Поддерживаются: txt, md, csv, json, docx, pdf, odt, изображения."
+    )
 
 
 def read_folder(folder: str | Path, limit_chars: int = 20000) -> str:

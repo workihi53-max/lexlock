@@ -560,9 +560,14 @@ async function uploadFiles(fileList) {
   for (const f of fileList) fd.append("files", f, f.name);
   $("upload-status").innerHTML = '<div class="status-line">Загружаем…</div>';
   try {
-    const r = await (await api("/api/upload", { method: "POST", body: fd })).json();
+    const data = await (await api("/api/upload", { method: "POST", body: fd })).json();
+    const saved = data.saved || [];
+    if (!saved.length) {
+      showError($("upload-status"), "Ни один файл не сохранён.");
+      return;
+    }
     $("upload-status").innerHTML = '<div class="ok-box">Загружено: ' +
-      r.saved.map(esc).join(", ") + "</div>";
+      saved.map(esc).join(", ") + "</div>";
     await loadFiles();
   } catch (e) {
     showError($("upload-status"), e.message);
@@ -609,6 +614,10 @@ async function runScenario(btn, url, body, render, out, needFile) {
 }
 
 function renderFill(data, out) {
+  if (data.ok === false || data.error) {
+    showError(out, data.error || "Не удалось заполнить договор.");
+    return;
+  }
   let html = "";
   if (data.package_mode) {
     html += '<div style="margin-bottom:10px"><span class="mode-badge">режим: весь пакет</span></div>';
@@ -657,6 +666,10 @@ function levelLabel(level) {
 }
 
 function renderRisks(data, out) {
+  if (data.ok === false || data.error) {
+    showError(out, data.error || "Не удалось проанализировать документ.");
+    return;
+  }
   let html = "";
   if (data.fallback) {
     html += '<div class="notice">Модель недоступна — показан эвристический разбор.</div>';
