@@ -26,6 +26,8 @@ rsync -a \
     --exclude '.venv' --exclude 'workspace' --exclude 'dist' --exclude '.git' \
     --exclude '__pycache__' --exclude '*.pyc' --exclude '.pytest_cache' \
     --exclude '.lexlock_model' --exclude '*.egg-info' \
+    --exclude 'заявка' --exclude 'ошибочки' --exclude 'promo-video' \
+    --exclude 'demo_qr.png' --exclude '*.log' --exclude 'docs' \
     "$ROOT/" "$APP/Contents/Resources/lexlock/"
 
 # --- иконка .icns из PNG ---
@@ -38,8 +40,8 @@ if [ -f "$ICON_SRC" ]; then
         d=$((size * 2))
         sips -z $d $d "$ICON_SRC" --out "$ICONSET/icon_${size}x${size}@2x.png" >/dev/null 2>&1 || true
     done
-    iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/vanja.icns" >/dev/null 2>&1 || \
-        cp "$ICON_SRC" "$APP/Contents/Resources/vanja.icns" 2>/dev/null || true
+    iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/lexlock.icns" >/dev/null 2>&1 || \
+        cp "$ICON_SRC" "$APP/Contents/Resources/lexlock.icns" 2>/dev/null || true
 fi
 
 # --- Info.plist ---
@@ -54,7 +56,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleVersion</key><string>$VERSION</string>
     <key>CFBundleShortVersionString</key><string>$VERSION</string>
     <key>CFBundleExecutable</key><string>lexlock</string>
-    <key>CFBundleIconFile</key><string>vanja</string>
+    <key>CFBundleIconFile</key><string>lexlock</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>LSMinimumSystemVersion</key><string>11.0</string>
     <key>NSHighResolutionCapable</key><true/>

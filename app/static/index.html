@@ -567,9 +567,14 @@ async function uploadFiles(fileList) {
   for (const f of fileList) fd.append("files", f, f.name);
   $("upload-status").innerHTML = '<div class="status-line">Загружаем…</div>';
   try {
-    const r = await (await api("/api/upload", { method: "POST", body: fd })).json();
+    const data = await (await api("/api/upload", { method: "POST", body: fd })).json();
+    const saved = data.saved || [];
+    if (!saved.length) {
+      showError($("upload-status"), "Ни один файл не сохранён.");
+      return;
+    }
     $("upload-status").innerHTML = '<div class="ok-box">Загружено: ' +
-      r.saved.map(esc).join(", ") + "</div>";
+      saved.map(esc).join(", ") + "</div>";
     await loadFiles();
   } catch (e) {
     showError($("upload-status"), e.message);
@@ -616,6 +621,10 @@ async function runScenario(btn, url, body, render, out, needFile) {
 }
 
 function renderFill(data, out) {
+  if (data.ok === false || data.error) {
+    showError(out, data.error || "Не удалось заполнить договор.");
+    return;
+  }
   let html = "";
   if (data.package_mode) {
     html += '<div style="margin-bottom:10px"><span class="mode-badge">режим: весь пакет</span></div>';
@@ -664,6 +673,10 @@ function levelLabel(level) {
 }
 
 function renderRisks(data, out, filename = state.selected) {
+  if (data.ok === false || data.error) {
+    showError(out, data.error || "Не удалось проанализировать документ.");
+    return;
+  }
   const side = data.side || "neutral";
   const labels = { neutral: "Обе стороны", customer: "Заказчик", contractor: "Исполнитель" };
   let html = '<div class="notice">Позиция анализа: ' + esc(labels[side] || side) + '</div>';
@@ -727,11 +740,20 @@ async function exportRisksDocx(btn, filename, side) {
 }
 
 function renderAsk(data, out) {
+  if (data.ok === false || data.error) {
+    showError(out, data.error || "Не удалось получить ответ.");
+    return;
+  }
   if (!data.answer) {
     showError(out, "Пустой ответ модели.");
     return;
   }
-  out.innerHTML = '<div class="answer">' + esc(data.answer) + "</div>";
+  let html = '<div class="answer">' + esc(data.answer) + "</div>";
+  if (data.sources && data.sources.length) {
+    const files = [...new Set(data.sources.map((s) => s.filename))];
+    html += '<div class="src-line">Источники: ' + files.map(esc).join(", ") + "</div>";
+  }
+  out.innerHTML = html;
 }
 
 function renderChecklist(data, out) {

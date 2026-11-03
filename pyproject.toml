@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lexlock"
-version = "0.2.3"
+version = "0.3.0"
 description = "Локальный офлайн-ассистент для юристов (Legal AI Vault)"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -15,6 +15,7 @@ dependencies = [
     "python-docx>=1.1",
     "pypdf>=4.0",
     "python-multipart>=0.0.9",
+    "cryptography>=42.0",
 ]
 
 [project.optional-dependencies]

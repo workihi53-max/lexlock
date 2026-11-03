@@ -70,6 +70,29 @@ def test_read_docx(tmp_path):
     assert "Параграф два" in text
 
 
+def test_read_odt(tmp_path):
+    import zipfile
+
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<office:document-content '
+        'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" '
+        'xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">'
+        "<office:body><office:text>"
+        "<text:h>Заголовок</text:h>"
+        "<text:p>Первый абзац<text:s/>с пробелом.</text:p>"
+        "<text:p>Второй абзац.</text:p>"
+        "</office:text></office:body></office:document-content>"
+    )
+    p = tmp_path / "doc.odt"
+    with zipfile.ZipFile(p, "w") as zf:
+        zf.writestr("content.xml", xml)
+    text = docs.read_document(p)
+    assert "Заголовок" in text
+    assert "Первый абзац с пробелом." in text
+    assert "Второй абзац." in text
+
+
 def test_read_pdf(tmp_path):
     p = tmp_path / "doc.pdf"
     _make_pdf(p, "Hello PDF")
@@ -81,6 +104,13 @@ def test_read_unsupported_raises(tmp_path):
     p = tmp_path / "doc.bin"
     p.write_bytes(b"\x00\x01")
     with pytest.raises(ValueError):
+        docs.read_document(p)
+
+
+def test_read_old_doc_gives_docx_hint(tmp_path):
+    p = tmp_path / "old.doc"
+    p.write_bytes(b"\xd0\xcf\x11\xe0")
+    with pytest.raises(ValueError, match="docx"):
         docs.read_document(p)
 
 

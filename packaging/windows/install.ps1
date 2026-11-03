@@ -65,7 +65,12 @@ try {
     Start-Process ollama -ArgumentList "serve" -WindowStyle Hidden
     Start-Sleep -Seconds 3
 }
-ollama pull $model
+try {
+    ollama pull $model
+} catch {
+    Write-Host "    Не удалось скачать модель $model (проверьте интернет)." -ForegroundColor Yellow
+    Write-Host "    Повторите позже: запустите ярлык «Установить компоненты» ещё раз." -ForegroundColor Yellow
+}
 
 # --- шаблон и тестовые данные ---
 .venv\Scripts\python.exe scripts\make_template.py

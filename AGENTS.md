@@ -352,4 +352,40 @@ LEXLOCK_WORKSPACE="$LEXLOCK_WORKSPACE" .venv/bin/python -c \
 - 2026-10-09 — релиз `v0.2.3` собран и опубликован (macos/linux/windows/release —
   success): `LexLock-0.2.3-win-setup.exe` (уже с фиксом корня проекта),
   `LexLock-0.2.3-x86_64.AppImage`, `LexLock-0.2.3.dmg`.
+- 2026-10-30 — fix(windows): установщик падал на всех машинах из-за `DefaultDirName={autopf}`
+  (Program Files) при `PrivilegesRequired=lowest` — запись без прав админа. Переведено на
+  `{localappdata}\LexLock`. `[Files]` переписан с «всего подряд» на белый список
+  (`lexlock/ app/ templates/ samples/ scripts/ pyproject.toml README.md packaging/windows/`):
+  так в установщик больше не попадают приватные каталоги и кэши. `.gitignore` дополнен
+  `заявка/ ошибочки/ promo-video/ *.log`.
+- 2026-10-30 — feat(offline-updates): ответ на главный вопрос критики «как доставлять
+  обновления без сети» — `lexlock/updater.py` (проверка Ed25519-подписи + sha256 и применение
+  пакета `.lexlock` офлайн, с бэкапом) и `scripts/make_update.py` (сборка/подпись у вендора).
+  `cryptography` добавлен в основные зависимости. Доки: `docs/10 Обновления офлайн.md`.
+- 2026-10-30 — feat(agent): +4 инструмента агента — `check_contract`, `search_documents`
+  (поиск по всем документам с указанием источника), `summarize`, `compare_documents`;
+  `ask` теперь возвращает `sources` (цитаты-источники). `rag.search()` — публичный поиск
+  фрагментов. Системный промт дополнен новыми инструментами.
+- 2026-10-30 — feat(audit): `lexlock/audit.py` — журнал действий агента с hash-цепочкой
+  (защита от подделки, `audit.verify()`), пишется в `workspace/.lexlock_audit`, отключается
+  `LEXLOCK_AUDIT=0`. Ответ на «действительно ли обеспечиваете кибербезопасность».
+- 2026-10-30 — fix(ocr): `read_document` для PDF больше не падает, когда есть Tesseract,
+  но нет PyMuPDF — добавлен `ocr.pdf_available()`, иначе честно возвращает текстовый слой.
+- 2026-10-30 — docs: `docs/11 Критика Экватора.md` (разбор замечаний), README/SPEC обновлены.
+  Тесты: 161/161 зелёных. Живой прогон на `qwen2.5:1.5b`: agent сам вызвал `find_risks` и
+  `search_documents`; updater подпись→проверка→применение→отклонение подделки работает.
+- 2026-10-30 — fix(docs/ui): поддержка `.odt` (OpenDocument) в `docs.read_document` через
+  `content.xml` (stdlib, без зависимостей); `renderAsk` больше не прячет реальную ошибку
+  («Пустой ответ модели» показывался вместо причины) и выводит источники-цитаты. 162/162.
+- 2026-10-30 — fix(ui): `renderFill`/`renderRisks`/`uploadFiles` показывают реальную ошибку
+  вместо «Готово.»/«Модель недоступна»/падения; `find_risks` при ошибке чтения отдаёт поле
+  `error`; неподдерживаемый формат (`.doc`/`.rtf` и др.) даёт понятное сообщение
+  «пересохраните в .docx». 164/164.
+- 2026-10-30 — release `v0.3.0`: версия поднята до 0.3.0 (pyproject + Inno Setup). В сборки
+  macOS/Linux добавлены исключения приватных каталогов (заявка/ошибочки/promo-video), иконка
+  `.icns` переименована из `vanja` в `lexlock`. Тег `v0.3.0` запускает release-workflow
+  (`.dmg`, `.AppImage`, `.exe`).
+- 2026-10-30 — docs(media): видеопрезентация в README — `docs/assets/lexlock-demo.mp4`
+  (1080p H.264, 1.7 МБ, из исходного 4K HEVC MOV 66 МБ) + постер с кнопкой play; сборки
+  macOS/Linux исключают `docs/`, чтобы видео не попадало в установщики.
 

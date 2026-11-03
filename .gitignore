@@ -7,3 +7,10 @@ workspace/
 .omo/
 .lexlock_model
 dist/
+demo_qr.png
+*.log
+
+# Локальные/приватные материалы — не для git и не для установщика.
+заявка/
+ошибочки/
+promo-video/

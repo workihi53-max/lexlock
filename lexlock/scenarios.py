@@ -215,6 +215,7 @@ def find_risks(filename: str, side: str = "neutral") -> dict:
     except Exception as exc:
         return {
             "ok": False,
+            "error": f"Не удалось прочитать документ: {exc}",
             "summary": "",
             "risks": [],
             "log": [f"Ошибка чтения документа: {exc}"],
@@ -283,9 +284,90 @@ def ask(filename: str, question: str) -> dict:
         answer = llm.chat(messages).content
     except LLMError as exc:
         return {"ok": False, "error": str(exc)}
-    result = {"ok": True, "answer": answer}
+    sources = [
+        {"filename": filename, "score": hit["score"], "snippet": hit["snippet"]}
+        for hit in rag.search(text, question, top=3)
+    ]
+    result = {"ok": True, "answer": answer, "sources": sources}
     cache.put(cfg.workspace, key, result)
     return {**result, "cached": False}
+
+
+def search_documents(query: str) -> dict:
+    """Поиск по всем документам рабочей папки (RAG-lite) с указанием источника."""
+    cfg = load_config()
+    query = (query or "").strip()
+    if not query:
+        return {"ok": False, "error": "Пустой запрос"}
+    if not cfg.workspace.is_dir():
+        return {"ok": True, "query": query, "matches": []}
+    matches: list[dict] = []
+    for item in sorted(cfg.workspace.iterdir()):
+        if not item.is_file():
+            continue
+        try:
+            text = docs.read_document(item)
+        except Exception:
+            continue
+        for hit in rag.search(text, query):
+            matches.append(
+                {"filename": item.name, "score": hit["score"], "snippet": hit["snippet"]}
+            )
+    matches.sort(key=lambda m: -m["score"])
+    return {"ok": True, "query": query, "matches": matches[:10]}
+
+
+def summarize(filename: str) -> dict:
+    """Краткое резюме документа через модель; при сбое — честная ошибка."""
+    cfg = load_config()
+    try:
+        text = docs.read_document(cfg.workspace / filename)
+    except Exception as exc:
+        return {"ok": False, "error": f"Не удалось прочитать документ: {exc}"}
+    snippet = rag.select_relevant(
+        text, "стороны предмет срок сумма ответственность риски", cfg.max_ctx_chars
+    )
+    llm = LLM(cfg)
+    try:
+        summary = llm.chat(
+            [
+                {"role": "system", "content": prompts.SUMMARIZE_SYSTEM_PROMPT},
+                {"role": "user", "content": f"Документ:\n\n{snippet}"},
+            ]
+        ).content
+    except LLMError as exc:
+        return {"ok": False, "error": str(exc)}
+    return {"ok": True, "filename": filename, "summary": summary}
+
+
+def compare_documents(a: str, b: str) -> dict:
+    """Сравнение двух документов через модель; при сбое — честная ошибка."""
+    cfg = load_config()
+    try:
+        text_a = docs.read_document(cfg.workspace / a)
+        text_b = docs.read_document(cfg.workspace / b)
+    except Exception as exc:
+        return {"ok": False, "error": f"Не удалось прочитать документы: {exc}"}
+    query = "условия срок сумма ответственность сторона предмет"
+    snippet_a = rag.select_relevant(text_a, query, cfg.max_ctx_chars // 2)
+    snippet_b = rag.select_relevant(text_b, query, cfg.max_ctx_chars // 2)
+    llm = LLM(cfg)
+    try:
+        comparison = llm.chat(
+            [
+                {"role": "system", "content": prompts.COMPARE_SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": (
+                        f"Документ A ({a}):\n\n{snippet_a}\n\n"
+                        f"Документ B ({b}):\n\n{snippet_b}"
+                    ),
+                },
+            ]
+        ).content
+    except LLMError as exc:
+        return {"ok": False, "error": str(exc)}
+    return {"ok": True, "a": a, "b": b, "comparison": comparison}
 
 
 def export_risks(filename: str, side: str = "neutral") -> dict:
