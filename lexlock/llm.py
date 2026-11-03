@@ -79,8 +79,10 @@ class LLM:
 
     def _model_present(self, names: list[str]) -> bool:
         model = self.config.model
-        base = model.split(":")[0]
-        return model in names or any(n.split(":")[0] == base for n in names)
+        # Не путать разные размеры модели; имя без тега означает latest.
+        expected = model if ":" in model.rsplit("/", 1)[-1] else model + ":latest"
+        return any((name if ":" in name.rsplit("/", 1)[-1] else name + ":latest") == expected
+                   for name in names)
 
     def available(self) -> bool:
         try:
@@ -147,13 +149,26 @@ class LLM:
                 resp = client.post("/api/chat", json=payload)
                 resp.raise_for_status()
                 data = resp.json()
+        except ValueError as exc:
+            raise LLMError("Ollama вернула некорректный JSON") from exc
         except httpx.ConnectError as exc:
             raise LLMError("Модель недоступна: Ollama не запущена") from exc
         except httpx.HTTPError as exc:
             raise LLMError(f"Ошибка обращения к Ollama: {exc}") from exc
 
-        message = data.get("message", {}) or {}
+        if not isinstance(data, dict) or not isinstance(data.get("message"), dict):
+            raise LLMError("Ollama вернула некорректное сообщение")
+        message = data["message"]
         content = message.get("content", "") or ""
+        calls = message.get("tool_calls") or []
+        if not isinstance(content, str) or not isinstance(calls, list) or any(
+            not isinstance(tc, dict) or not isinstance(tc.get("function"), dict)
+            or not isinstance(tc["function"].get("name"), str)
+            for tc in calls
+        ):
+            raise LLMError("Ollama вернула некорректное сообщение")
+        if not content.strip() and not calls:
+            raise LLMError("Модель вернула пустой ответ")
         tool_calls = [
             ToolCall(
                 name=(tc.get("function", {}) or {}).get("name", ""),

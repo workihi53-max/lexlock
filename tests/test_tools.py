@@ -253,3 +253,30 @@ def test_compare_documents_tool_error_path(tmp_path, monkeypatch):
     assert result["ok"] is True
     assert result["result"]["ok"] is False
     assert "error" in result["result"]
+
+
+def test_agent_cannot_read_or_write_outside_workspace(tmp_path, monkeypatch):
+    ws = _ws(tmp_path, monkeypatch)
+    outside = tmp_path / 'private.txt'
+    outside.write_text('private')
+    for tool, args in (
+        ('read_document', {'filename': '../private.txt'}),
+        ('write_report', {'name': '../private.txt', 'content': 'changed'}),
+        ('compare_documents', {'a': '../private.txt', 'b': 'doc.txt'}),
+    ):
+        result = tools.dispatch(tool, args)
+        assert not result['ok'] or not result['result'].get('ok', True)
+    assert outside.read_text() == 'private'
+    (ws / 'link.txt').symlink_to(outside)
+    result = tools.dispatch('read_document', {'filename': 'link.txt'})
+    assert not result['ok']
+    assert 'link.txt' not in [f['name'] for f in tools.dispatch('list_files', {})['result']]
+    assert scenarios.search_documents('private')['matches'] == []
+
+
+def test_fill_cannot_write_outside_workspace(tmp_path, monkeypatch):
+    ws = _ws(tmp_path, monkeypatch)
+    (ws / 'doc.txt').write_text('ИНН 7701234567')
+    result = scenarios.fill_contract('doc.txt', '../escaped.docx')
+    assert not result['ok']
+    assert not (tmp_path / 'escaped.docx').exists()

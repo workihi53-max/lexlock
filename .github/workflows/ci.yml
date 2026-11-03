@@ -17,3 +17,18 @@ jobs:
         run: uv pip install --python .venv/bin/python -e ".[dev]"
       - name: Тесты (без Ollama)
         run: .venv/bin/python -m pytest tests -q
+
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Проверить Windows PowerShell 5.1
+        shell: powershell
+        run: ./tests/windows/test_installer.ps1
+      - name: Установить Inno Setup
+        run: choco install innosetup -y
+      - name: Проверить сборку установщика
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "packaging\windows\installer.iss"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

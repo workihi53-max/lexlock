@@ -124,7 +124,7 @@ def fill_contract(source_filename: str | None = None, out_name: str | None = Non
             sources = _SOURCE_HEADER.findall(text)
         else:
             log.append(f"Читаю источник: {source_filename}")
-            text = docs.read_document(cfg.workspace / source_filename)
+            text = docs.read_document(docs.safe_workspace_path(cfg.workspace, source_filename))
             sources = [source_filename]
     except Exception as exc:
         log.append(f"Ошибка чтения источника: {exc}")
@@ -161,8 +161,11 @@ def fill_contract(source_filename: str | None = None, out_name: str | None = Non
 
     if out_name is None:
         out_name = "dogovor.docx" if package_mode else Path(source_filename).stem + "_dogovor.docx"
-    out_path = cfg.workspace / out_name
-    docs.fill_docx(template, found, out_path)
+    try:
+        out_path = docs.safe_workspace_path(cfg.workspace, out_name)
+        docs.fill_docx(template, found, out_path)
+    except (ValueError, OSError) as exc:
+        return {"ok": False, "error": f"Не удалось сохранить договор: {exc}"}
     log.append(f"Договор сохранён: {out_name}")
     return {
         "ok": True,
@@ -211,7 +214,7 @@ def find_risks(filename: str, side: str = "neutral") -> dict:
     cfg = load_config()
     log = [f"Читаю документ: {filename}", f"Сторона: {RISK_SIDES[side]}"]
     try:
-        text = docs.read_document(cfg.workspace / filename)
+        text = docs.read_document(docs.safe_workspace_path(cfg.workspace, filename))
     except Exception as exc:
         return {
             "ok": False,
@@ -223,7 +226,7 @@ def find_risks(filename: str, side: str = "neutral") -> dict:
         }
 
     snippet = rag.select_relevant(text, prompts.RISK_QUERY, cfg.max_ctx_chars)
-    key = cache.make_key(cfg.model, "risks", text, f"side-v1:{side}:{cfg.max_ctx_chars}")
+    key = cache.make_key(cfg.model, "risks", text, f"side-v2:{side}:{cfg.max_ctx_chars}")
     cached = cache.get(cfg.workspace, key)
     if cached is not None:
         log.append("Риски взяты из кэша")
@@ -242,8 +245,16 @@ def find_risks(filename: str, side: str = "neutral") -> dict:
         data = llm.json_chat(messages, schema_hint=prompts.RISK_SCHEMA)
         risks = data.get("risks", []) if isinstance(data, dict) else []
         summary = data.get("summary", "") if isinstance(data, dict) else ""
-        if not risks:
-            raise LLMError("Модель не вернула список рисков")
+        if (
+            not isinstance(summary, str) or not isinstance(risks, list) or not risks
+            or any(
+                not isinstance(risk, dict)
+                or any(not isinstance(risk.get(field), str) or not risk[field].strip()
+                       for field in ("punkt", "risk", "level", "recommendation"))
+                for risk in risks
+            )
+        ):
+            raise LLMError("Модель вернула некорректный список рисков")
         payload = {"ok": True, "summary": summary, "risks": risks, "fallback": False, "side": side}
         cache.put(cfg.workspace, key, payload)
         log.append("Риски получены от модели")
@@ -265,7 +276,7 @@ def ask(filename: str, question: str) -> dict:
     """Ответ на вопрос по документу; при сбое модели — {"ok": False, "error": ...}."""
     cfg = load_config()
     try:
-        text = docs.read_document(cfg.workspace / filename)
+        text = docs.read_document(docs.safe_workspace_path(cfg.workspace, filename))
     except Exception as exc:
         return {"ok": False, "error": f"Не удалось прочитать документ: {exc}"}
 
@@ -303,7 +314,7 @@ def search_documents(query: str) -> dict:
         return {"ok": True, "query": query, "matches": []}
     matches: list[dict] = []
     for item in sorted(cfg.workspace.iterdir()):
-        if not item.is_file():
+        if not item.is_file() or item.is_symlink():
             continue
         try:
             text = docs.read_document(item)
@@ -321,7 +332,7 @@ def summarize(filename: str) -> dict:
     """Краткое резюме документа через модель; при сбое — честная ошибка."""
     cfg = load_config()
     try:
-        text = docs.read_document(cfg.workspace / filename)
+        text = docs.read_document(docs.safe_workspace_path(cfg.workspace, filename))
     except Exception as exc:
         return {"ok": False, "error": f"Не удалось прочитать документ: {exc}"}
     snippet = rag.select_relevant(
@@ -344,8 +355,8 @@ def compare_documents(a: str, b: str) -> dict:
     """Сравнение двух документов через модель; при сбое — честная ошибка."""
     cfg = load_config()
     try:
-        text_a = docs.read_document(cfg.workspace / a)
-        text_b = docs.read_document(cfg.workspace / b)
+        text_a = docs.read_document(docs.safe_workspace_path(cfg.workspace, a))
+        text_b = docs.read_document(docs.safe_workspace_path(cfg.workspace, b))
     except Exception as exc:
         return {"ok": False, "error": f"Не удалось прочитать документы: {exc}"}
     query = "условия срок сумма ответственность сторона предмет"
@@ -377,7 +388,7 @@ def export_risks(filename: str, side: str = "neutral") -> dict:
         return analysis
     cfg = load_config()
     out_name = Path(filename).stem + "_risks.docx"
-    out_path = cfg.workspace / out_name
+    out_path = docs.safe_workspace_path(cfg.workspace, out_name)
     docs.write_risk_report(
         out_path,
         filename,
@@ -398,7 +409,7 @@ def check_contract(filename: str, contract_type: str | None = None) -> dict:
     """Проверка договора по чек-листу. Тип определяется автоматически или задан."""
     cfg = load_config()
     try:
-        text = docs.read_document(cfg.workspace / filename)
+        text = docs.read_document(docs.safe_workspace_path(cfg.workspace, filename))
     except Exception as exc:
         return {"ok": False, "error": f"Не удалось прочитать документ: {exc}"}
     ctype = contract_type if contract_type in checklists.CHECKLISTS else None

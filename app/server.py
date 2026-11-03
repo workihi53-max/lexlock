@@ -21,6 +21,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from lexlock.docs import safe_workspace_path
 from lexlock import agent as lexlock_agent
 from lexlock import config as lexlock_config
 from lexlock import llm as lexlock_llm
@@ -62,20 +63,6 @@ class ChatRequest(BaseModel):
 
 
 # --- проверка имён файлов -----------------------------------------------------
-
-def safe_workspace_path(workspace: Path, name: str) -> Path:
-    """Только голое имя файла внутри workspace, без '..', путей и симлинков."""
-    if not name or name in (".", ".."):
-        raise ValueError("недопустимое имя файла")
-    if "/" in name or "\\" in name or Path(name).name != name:
-        raise ValueError("имя файла не должно содержать путь")
-    path = workspace / name
-    if path.is_symlink():
-        raise ValueError("символьные ссылки запрещены")
-    if not path.resolve().is_relative_to(workspace.resolve()):
-        raise ValueError("файл находится вне рабочей папки")
-    return path
-
 
 def _checked_path(workspace: Path, name: str) -> Path:
     try:
@@ -198,6 +185,8 @@ def create_app(config: Any | None = None) -> FastAPI:
         # пустой filename — легальный режим «пакет»: ядро берёт все документы
         if req.filename:
             _checked_path(workspace, req.filename)
+        if req.out_name is not None:
+            _checked_path(workspace, req.out_name)
         try:
             result = lexlock_scenarios.fill_contract(req.filename or None, req.out_name)
         except Exception as exc:

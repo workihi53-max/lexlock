@@ -375,3 +375,11 @@ def test_risk_side_forwarding_and_validation(client, monkeypatch):
     response = client.post('/api/scenario/risks', json={"filename": "a.txt", "side": "invalid"})
     assert response.status_code == 422
     assert calls == [("a.txt", side) for side in ("customer", "contractor", "neutral")]
+
+
+def test_fill_rejects_output_path_before_running_scenario(client, monkeypatch):
+    def should_not_run(*args, **kwargs):
+        raise AssertionError('scenario should not execute')
+    monkeypatch.setattr(server.lexlock_scenarios, 'fill_contract', should_not_run)
+    r = client.post('/api/scenario/fill', json={'out_name': '../outside.docx'})
+    assert r.status_code == 400

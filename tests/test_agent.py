@@ -386,3 +386,19 @@ def test_side_fallback_discloses_general_analysis(tmp_path, monkeypatch):
     result = scenarios.find_risks("dog.txt", side="contractor")
     assert result["fallback"] and result["side"] == "contractor"
     assert "без учёта выбранной стороны" in result["summary"]
+
+
+def test_malformed_risks_use_fallback(tmp_path, monkeypatch):
+    ws = _ws(tmp_path, monkeypatch)
+    (ws / 'dog.txt').write_text('Неустойка за просрочку')
+    class BadRiskLLM:
+        def json_chat(self, messages, schema_hint=None):
+            return {'summary': 'Разбор', 'risks': ['это строка, а не риск']}
+    monkeypatch.setattr(scenarios, 'LLM', lambda config=None: BadRiskLLM())
+    result = scenarios.find_risks('dog.txt', side='customer')
+    assert result['fallback']
+    assert all(isinstance(r, dict) for r in result['risks'])
+
+
+def test_health_does_not_accept_another_model_size():
+    assert not LLM(_cfg())._model_present(['qwen2.5:1.5b'])
