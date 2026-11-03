@@ -91,8 +91,10 @@ Set-Content -Path $ReadyFile -Value "ok" -Encoding ASCII
 Write-Host "Готово. Запустите ярлык «ЛексЛок»."
 } catch {
     Write-Host "Установка не завершена: $_" -ForegroundColor Red
+    if ($env:LEXLOCK_INSTALL_NONINTERACTIVE -ne "1") {
     $shell = New-Object -ComObject WScript.Shell
     $shell.Popup("Установка не завершена. Проверьте интернет и повторите через ярлык «Установить компоненты». Подробности: $Root\install.log", 0, "ЛексЛок", 16) | Out-Null
+    }
     exit 1
 } finally {
     Stop-Transcript | Out-Null
