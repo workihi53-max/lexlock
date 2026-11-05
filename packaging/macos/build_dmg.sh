@@ -92,19 +92,41 @@ fail() {
     fi
 }
 
+# Первый запуск: подтягиваем свежий код ветки main (правки после сборки .dmg
+# тоже попадут). При неудаче молча остаёмся на коде из бандла. Документы
+# (workspace), окружение (.venv) и журналы не затрагиваются. Каталог с .git
+# считаем разработческим и не перезаписываем.
+CODE_SRC="$SRC"
+TMP_CODE=""
+if [ ! -x "$DIR/.venv/bin/python" ] && [ "${LEXLOCK_NO_REFRESH:-0}" != "1" ] && [ ! -d "$DIR/.git" ]; then
+    REF="${LEXLOCK_CODE_REF:-main}"
+    if TMP_CODE="$(mktemp -d 2>>"$LOG")" \
+        && curl -fL --retry 2 "https://github.com/workihi53-max/lexlock/archive/refs/heads/$REF.tar.gz" \
+            -o "$TMP_CODE/src.tar.gz" 2>>"$LOG" \
+        && tar -xzf "$TMP_CODE/src.tar.gz" -C "$TMP_CODE" 2>>"$LOG" \
+        && [ -d "$TMP_CODE/lexlock-$REF" ]; then
+        CODE_SRC="$TMP_CODE/lexlock-$REF"
+        echo "Код обновлён до $REF." >>"$LOG" 2>&1
+    else
+        rm -rf "$TMP_CODE" 2>/dev/null || true
+        TMP_CODE=""
+    fi
+fi
+
 # Разворачиваем/обновляем проект в записываемом каталоге.
 mkdir -p "$DIR" 2>>"$LOG" || { fail "Нет доступа к $DIR."; exit 1; }
 if command -v rsync >/dev/null 2>&1; then
     rsync -a --delete \
         --exclude '.venv' --exclude 'workspace' --exclude '.lexlock_model' \
-        "$SRC/" "$DIR/" >>"$LOG" 2>&1 || cp -R "$SRC/." "$DIR/" 2>>"$LOG"
+        "$CODE_SRC/" "$DIR/" >>"$LOG" 2>&1 || cp -R "$CODE_SRC/." "$DIR/" 2>>"$LOG"
 else
-    cp -R "$SRC/." "$DIR/" 2>>"$LOG"
+    cp -R "$CODE_SRC/." "$DIR/" 2>>"$LOG"
 fi
+[ -n "$TMP_CODE" ] && rm -rf "$TMP_CODE"
 cd "$DIR" || { fail "Не нашёл файлы приложения."; exit 1; }
 
 if [ ! -x .venv/bin/python ]; then
-    ask "ЛексЛок установится и откроется в браузере.\nПервый запуск скачает компоненты и модель (~2 ГБ),\nэто займёт несколько минут." || exit 0
+    ask "ЛексЛок установится и откроется в браузере.\nПервый запуск скачает свежий код, компоненты и модель (~2 ГБ),\nэто займёт несколько минут." || exit 0
     say "Устанавливаю «ЛексЛок», это займёт несколько минут…"
     if ! ./install.sh >>"$LOG" 2>&1; then
         fail "Не удалось установить. Проверьте интернет и попробуйте снова."

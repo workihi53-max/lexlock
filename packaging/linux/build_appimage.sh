@@ -42,13 +42,36 @@ error() { command -v zenity >/dev/null && zenity --error --title="ЛексЛок
 ask()   { command -v zenity >/dev/null && zenity --question --title="ЛексЛок" --text="$1" --width=440 2>/dev/null; }
 note()  { command -v notify-send >/dev/null && notify-send "ЛексЛок" "$1" 2>/dev/null; }
 
+refresh_code() {
+    # Первый запуск: подтягиваем свежий код ветки main (правки после сборки
+    # AppImage тоже попадут). При неудаче молча остаёмся на коде из AppImage.
+    # Документы (workspace), окружение (.venv) и журналы не затрагиваются.
+    # Каталог с .git считаем разработческим и не перезаписываем.
+    [ "${LEXLOCK_NO_REFRESH:-0}" = "1" ] && return 0
+    [ -d "$TARGET/.git" ] && return 0
+    ref="${LEXLOCK_CODE_REF:-main}"
+    tmp="$(mktemp -d)" || return 0
+    if curl -fL --retry 2 "https://github.com/workihi53-max/lexlock/archive/refs/heads/$ref.tar.gz" \
+            -o "$tmp/src.tar.gz" 2>/dev/null \
+        && tar -xzf "$tmp/src.tar.gz" -C "$tmp" 2>/dev/null \
+        && [ -d "$tmp/lexlock-$ref" ]; then
+        ( cd "$tmp/lexlock-$ref" && tar -cf - \
+            --exclude=.venv --exclude=workspace --exclude=.git --exclude=dist \
+            --exclude='*.log' --exclude=.lexlock_model --exclude=__pycache__ . ) \
+            | ( cd "$TARGET" && tar -xf - ) 2>/dev/null || true
+        echo "Код обновлён до $ref."
+    fi
+    rm -rf "$tmp"
+}
+
 if [ ! -x "$TARGET/.venv/bin/python" ]; then
-    info "ЛексЛок установится и откроется в браузере.\nПервый запуск скачает компоненты и модель (~2 ГБ)." || exit 0
+    info "ЛексЛок установится и откроется в браузере.\nПервый запуск скачает свежий код, компоненты и модель (~2 ГБ)." || exit 0
     if [ ! -d "$TARGET" ]; then
         mkdir -p "$TARGET"
         cp -R "$HERE/app/." "$TARGET/"
     fi
     cd "$TARGET" || exit 1
+    refresh_code >>"$LOG" 2>&1
     if ! ./install.sh >>"$LOG" 2>&1; then
         error "Не удалось установить. Проверьте интернет и попробуйте снова."
         exit 1
