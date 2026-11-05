@@ -23,19 +23,24 @@ Start-Transcript -Path (Join-Path $Root "install.log") -Force | Out-Null
 $ReadyFile = Join-Path $Root ".lexlock_install_ok"
 Remove-Item $ReadyFile -ErrorAction SilentlyContinue
 try {
-Write-Host "=== ЛексЛок: установка ==="
+Write-Host "=== ЛексЛок: установка компонентов ==="
+Write-Host "Папка программы: $Root"
+Write-Host "Документы будут здесь: $(Join-Path $Root 'workspace')"
+Write-Host ""
 
-# --- uv ---
+# --- Шаг 1/6: менеджер пакетов uv (ставится в профиль пользователя) ---
 if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
-    Write-Host "==> Устанавливаю uv"
+    Write-Host "[1/6] Ставлю менеджер uv (нужен для Python-окружения)..."
     Invoke-RestMethod https://astral.sh/uv/install.ps1 | Invoke-Expression
     if (-not (Get-Command uv -ErrorAction SilentlyContinue)) { throw "Не удалось установить uv" }
+} else {
+    Write-Host "[1/6] uv уже есть — пропускаю."
 }
 $env:Path = "$env:USERPROFILE\.local\bin;$env:USERPROFILE\.cargo\bin;$env:Path"
 
-# --- Ollama ---
+# --- Шаг 2/6: Ollama (запуск модели локально, ~500 МБ) ---
 if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
-    Write-Host "==> Устанавливаю Ollama"
+    Write-Host "[2/6] Ставлю Ollama (программа для локального запуска модели)..."
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         Invoke-Checked winget @("install", "--id", "Ollama.Ollama", "-e", "--silent", "--disable-interactivity", "--accept-source-agreements", "--accept-package-agreements")
     } else {
@@ -46,18 +51,21 @@ if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
         $setup = Start-Process $exe -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait -PassThru
         if ($setup.ExitCode -notin @(0, 3010)) { throw "Установка Ollama завершилась с кодом $($setup.ExitCode)" }
     }
+} else {
+    Write-Host "[2/6] Ollama уже есть — пропускаю."
 }
 $env:Path = "$env:LOCALAPPDATA\Programs\Ollama;$env:ProgramFiles\Ollama;$env:Path"
 
 if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) { throw "Ollama не найдена после установки" }
 
-# --- окружение Python (с OCR) ---
+# --- Шаг 3/6: Python-окружение только для ЛексЛока (.venv в папке программы) ---
+Write-Host "[3/6] Создаю Python-окружение в папке программы (.venv)..."
 if (-not (Test-Path ".venv\Scripts\python.exe")) { Invoke-Checked uv @("venv", "--python", "3.12", ".venv") }
 Invoke-Checked uv @("pip", "install", "--python", ".venv\Scripts\python.exe", "-e", ".[ocr]")
 
-# --- OCR: Tesseract + русский ---
+# --- Шаг 4/6: Tesseract для чтения сканов (необязательно) ---
 if (-not (Get-Command tesseract -ErrorAction SilentlyContinue)) {
-    Write-Host "==> Устанавливаю Tesseract OCR"
+    Write-Host "[4/6] Ставлю Tesseract для чтения сканов (необязательно)..."
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         try {
             Invoke-Checked winget @("install", "--id", "UB-Mannheim.TesseractOCR", "-e", "--silent", "--disable-interactivity", "--accept-source-agreements", "--accept-package-agreements")
@@ -67,11 +75,11 @@ if (-not (Get-Command tesseract -ErrorAction SilentlyContinue)) {
     }
 }
 
-# --- модель по объёму ОЗУ ---
+# --- Шаг 5/6: языковая модель под вашу память (скачивается один раз, ~1-2 ГБ) ---
 $ramGb = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 1)
 $model = if ($ramGb -ge 10) { "qwen2.5:3b" } else { "qwen2.5:1.5b" }
 [System.IO.File]::WriteAllText("$Root\.lexlock_model", $model)
-Write-Host "==> ОЗУ $ramGb ГБ, выбрана модель $model"
+Write-Host "[5/6] Памяти: $ramGb ГБ — качаю модель $model (~1-2 ГБ, это дольше всего)..."
 
 # --- Ollama serve + модель ---
 try {
@@ -83,12 +91,16 @@ Wait-Ollama
 # Ошибка загрузки обязательной модели не должна превращаться в «Готово».
 Invoke-Checked ollama @("pull", $model)
 
-# --- шаблон и тестовые данные ---
+# --- Шаг 6/6: шаблон договора и примеры ---
+Write-Host "[6/6] Готовлю шаблон договора и примеры..."
 Invoke-Checked ".venv\Scripts\python.exe" @("scripts\make_template.py")
 Invoke-Checked ".venv\Scripts\python.exe" @("scripts\demo_data.py")
 
 Set-Content -Path $ReadyFile -Value "ok" -Encoding ASCII
-Write-Host "Готово. Запустите ярлык «ЛексЛок»."
+Write-Host ""
+Write-Host "Готово. Программа здесь: $Root"
+Write-Host "Документы кладите сюда: $(Join-Path $Root 'workspace')"
+Write-Host "Запуск — ярлык «ЛексЛок» в меню Пуск (откроется в браузере)."
 } catch {
     Write-Host "Установка не завершена: $_" -ForegroundColor Red
     if ($env:LEXLOCK_INSTALL_NONINTERACTIVE -ne "1") {
