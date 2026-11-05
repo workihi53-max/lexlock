@@ -60,7 +60,7 @@ Name: "desktopicon"; Description: "Создать ярлык на рабочем
 ; Папка установки: {app} (по умолчанию %LOCALAPPDATA%\LexLock). Документы: {app}\workspace.
 Filename: "powershell.exe"; \
     Parameters: "-ExecutionPolicy Bypass -File ""{app}\packaging\windows\install.ps1"""; \
-    WorkingDir: "{app}"; StatusMsg: "Шаг 2 из 2: ставлю Python-окружение, Ollama и модель (~2 ГБ, нужен интернет)…"; \
+    WorkingDir: "{app}"; StatusMsg: "Шаг 2 из 2: подтягиваю свежий код, ставлю Python-окружение, Ollama и модель (~2 ГБ, нужен интернет)…"; \
     Flags: runhidden waituntilterminated; BeforeInstall: ResetComponentStatus; AfterInstall: CheckComponentStatus
 Filename: "{sys}\wscript.exe"; Parameters: """{app}\packaging\windows\run.vbs"""; \
     Description: "Запустить «ЛексЛок» (откроется в браузере)"; Flags: postinstall nowait skipifsilent

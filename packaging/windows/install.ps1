@@ -1,4 +1,11 @@
-﻿# Установка «ЛексЛока» на Windows. Запуск из PowerShell:
+﻿param(
+    # Внутренние параметры свежего кода; вручную не задавать.
+    # -TargetRoot задаёт папку установки, когда скрипт запущен из временного каталога.
+    # -NoRefresh отключает повторное скачивание (второй этап).
+    [string]$TargetRoot = "",
+    [switch]$NoRefresh
+)
+# Установка «ЛексЛока» на Windows. Запуск из PowerShell:
 #   powershell -ExecutionPolicy Bypass -File packaging\windows\install.ps1
 $ErrorActionPreference = "Stop"
 # PowerShell 5.1: для загрузок нужен TLS 1.2 и режим без Internet Explorer.
@@ -7,22 +14,62 @@ $ErrorActionPreference = "Stop"
 $env:Path = "$env:USERPROFILE\.local\bin;$env:USERPROFILE\.cargo\bin;$env:LOCALAPPDATA\Programs\Ollama;$env:ProgramFiles\Ollama;$env:Path"
 
 # Скрипт лежит в packaging\windows — корень проекта ищем вверх до pyproject.toml.
+# Если задан -TargetRoot (второй этап после подтягивания свежего кода), ищем не надо.
 $Dir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Root = $Dir
-while ($Root -and -not (Test-Path (Join-Path $Root "pyproject.toml"))) {
-    $Parent = Split-Path -Parent $Root
-    if (-not $Parent -or $Parent -eq $Root) { $Root = $null; break }
-    $Root = $Parent
+if ($TargetRoot) {
+    $Root = $TargetRoot
+} else {
+    $Root = $Dir
+    while ($Root -and -not (Test-Path (Join-Path $Root "pyproject.toml"))) {
+        $Parent = Split-Path -Parent $Root
+        if (-not $Parent -or $Parent -eq $Root) { $Root = $null; break }
+        $Root = $Parent
+    }
 }
 if (-not $Root) {
     Write-Host "Не удалось найти корень проекта (pyproject.toml). Запустите скрипт из папки проекта." -ForegroundColor Red
     exit 1
 }
 Set-Location $Root
-Start-Transcript -Path (Join-Path $Root "install.log") -Force | Out-Null
+Start-Transcript -Path (Join-Path $Root "install.log") -Append -Force | Out-Null
 $ReadyFile = Join-Path $Root ".lexlock_install_ok"
 Remove-Item $ReadyFile -ErrorAction SilentlyContinue
 try {
+if ($TargetRoot) {
+    # Этап 2: мы — свежий скрипт из временного каталога. Копируем свежий код
+    # в папку установки поверх кода из установщика. Документы (workspace),
+    # окружение (.venv) и журналы не трогаем — их нет в белом списке.
+    Write-Host "Копирую свежий код в папку установки: $Root"
+    $srcRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+    foreach ($item in @("lexlock", "app", "templates", "samples", "scripts", "packaging", "pyproject.toml", "README.md")) {
+        $src = Join-Path $srcRoot $item
+        if (Test-Path $src) { Copy-Item $src (Join-Path $Root $item) -Recurse -Force }
+    }
+} elseif ($env:LEXLOCK_NO_REFRESH -ne "1" -and -not (Test-Path (Join-Path $Root ".git"))) {
+    # Этап 1: мы — скрипт из установщика. Подтягиваем свежий код ветки main
+    # и перезапускаемся уже из него. Каталог с .git считаем разработческим —
+    # его не перезаписываем, чтобы не затереть незакоммиченные правки.
+    $codeRef = $env:LEXLOCK_CODE_REF
+    if (-not $codeRef) { $codeRef = "main" }
+    Write-Host "[0/6] Подтягиваю свежий код (ветка $codeRef)..."
+    try {
+        $zip = Join-Path $env:TEMP "lexlock-code.zip"
+        if (Test-Path $zip) { Remove-Item $zip -Force }
+        Invoke-WebRequest -UseBasicParsing "https://github.com/workihi53-max/lexlock/archive/refs/heads/$codeRef.zip" -OutFile $zip
+        $tmp = Join-Path $env:TEMP "lexlock-code"
+        if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
+        Expand-Archive -Path $zip -DestinationPath $tmp -Force
+        $freshRoot = Get-ChildItem $tmp -Directory | Select-Object -First 1
+        $freshScript = Join-Path $freshRoot.FullName "packaging\windows\install.ps1"
+        if (-not (Test-Path $freshScript)) { throw "в архиве нет packaging/windows/install.ps1" }
+        Write-Host "    Свежий код получен, продолжаю установку из него..."
+        $ps = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+        & $ps -ExecutionPolicy Bypass -File $freshScript -TargetRoot $Root -NoRefresh
+        exit $LASTEXITCODE
+    } catch {
+        Write-Warning "Не удалось подтянуть свежий код ($_). Ставлю код из установщика."
+    }
+}
 Write-Host "=== ЛексЛок: установка компонентов ==="
 Write-Host "Папка программы: $Root"
 Write-Host "Документы будут здесь: $(Join-Path $Root 'workspace')"
