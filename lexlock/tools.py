@@ -1,4 +1,4 @@
-"""Инструменты агента: ровно 6 штук для работы с файлами."""
+"""Инструменты агента для работы с документами рабочей папки."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ def _list_files() -> list[dict]:
     ws.mkdir(parents=True, exist_ok=True)
     files = []
     for item in sorted(ws.iterdir()):
-        if item.is_file():
+        if item.is_file() and not item.is_symlink():
             files.append(
                 {
                     "name": item.name,
@@ -37,13 +37,13 @@ def _list_files() -> list[dict]:
 
 def _read_document_tool(filename: str) -> dict:
     cfg = load_config()
-    text = docs.read_document(cfg.workspace / filename)
+    text = docs.read_document(docs.safe_workspace_path(cfg.workspace, filename))
     return {"filename": filename, "text": text}
 
 
 def _extract_requisites_tool(filename: str) -> dict:
     cfg = load_config()
-    text = docs.read_document(cfg.workspace / filename)
+    text = docs.read_document(docs.safe_workspace_path(cfg.workspace, filename))
     found = extract.extract_requisites(text)
     return {"fields": found, "missing": extract.missing_fields(found)}
 
@@ -52,13 +52,13 @@ def _fill_contract_tool(source_filename: str | None = None, out_name: str | None
     return scenarios.fill_contract(source_filename, out_name)
 
 
-def _find_risks_tool(filename: str) -> dict:
-    return scenarios.find_risks(filename)
+def _find_risks_tool(filename: str, side: str = "neutral") -> dict:
+    return scenarios.find_risks(filename, side=side)
 
 
 def _write_report_tool(name: str, content: str) -> dict:
     cfg = load_config()
-    path = docs.write_text(cfg.workspace / name, content)
+    path = docs.write_text(docs.safe_workspace_path(cfg.workspace, name), content)
     return {"name": path.name, "path": str(path)}
 
 
@@ -147,6 +147,11 @@ TOOLS: list[Tool] = [
                 "filename": {
                     "type": "string",
                     "description": "Имя файла договора в рабочем пространстве",
+                },
+                "side": {
+                    "type": "string",
+                    "enum": ["neutral", "customer", "contractor"],
+                    "description": "Позиция анализа: neutral — обе стороны, customer — заказчик, contractor — исполнитель",
                 }
             },
             "required": ["filename"],

@@ -55,7 +55,7 @@ def client(tmp_path, monkeypatch):
 def fake_scenarios(**fns) -> SimpleNamespace:
     base = {
         "fill_contract": lambda src, out_name=None: {"ok": True},
-        "find_risks": lambda filename: {"ok": True, "summary": "", "risks": []},
+        "find_risks": lambda filename, side="neutral": {"ok": True, "summary": "", "risks": []},
         "ask": lambda filename, question: {"ok": True, "answer": ""},
     }
     base.update(fns)
@@ -247,7 +247,7 @@ def test_scenario_fill_rejects_traversal(client, monkeypatch):
 
 def test_scenario_risks(client, monkeypatch):
     monkeypatch.setattr(server, "lexlock_scenarios", fake_scenarios(
-        find_risks=lambda filename: {
+        find_risks=lambda filename, side="neutral": {
             "ok": True, "summary": "договор рискованный", "fallback": True,
             "risks": [{"punkt": "3.1", "risk": "нет ответственности",
                        "level": "высокий", "recommendation": "добавить"}],
@@ -270,7 +270,7 @@ def test_scenario_ask(client, monkeypatch):
 
 def test_scenario_export_risks(client, monkeypatch):
     monkeypatch.setattr(server, "lexlock_scenarios", fake_scenarios(
-        export_risks=lambda filename: {
+        export_risks=lambda filename, side="neutral": {
             "ok": True, "download_name": filename + "_risks.docx",
             "risks": [{"punkt": "1", "risk": "риск"}],
         }))
@@ -359,4 +359,27 @@ def test_chat_survives_agent_exception(client, monkeypatch):
 
 def test_chat_empty_message_400(client):
     r = client.post("/api/chat", json={"message": "   "})
+    assert r.status_code == 400
+
+
+def test_risk_side_forwarding_and_validation(client, monkeypatch):
+    calls = []
+    def analyze(filename, side="neutral"):
+        calls.append((filename, side))
+        return {"ok": True, "side": side, "risks": []}
+    monkeypatch.setattr(server.lexlock_scenarios, "find_risks", analyze)
+    for side in ("customer", "contractor", "neutral"):
+        response = client.post('/api/scenario/risks', json={"filename": "a.txt", "side": side})
+        assert response.status_code == 200
+        assert response.json()["side"] == side
+    response = client.post('/api/scenario/risks', json={"filename": "a.txt", "side": "invalid"})
+    assert response.status_code == 422
+    assert calls == [("a.txt", side) for side in ("customer", "contractor", "neutral")]
+
+
+def test_fill_rejects_output_path_before_running_scenario(client, monkeypatch):
+    def should_not_run(*args, **kwargs):
+        raise AssertionError('scenario should not execute')
+    monkeypatch.setattr(server.lexlock_scenarios, 'fill_contract', should_not_run)
+    r = client.post('/api/scenario/fill', json={'out_name': '../outside.docx'})
     assert r.status_code == 400

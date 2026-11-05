@@ -1,0 +1,60 @@
+name: Full Windows installation
+
+on:
+  push:
+    branches: ['feature/side-analysis-windows-fixes']
+    paths:
+      - '.github/workflows/windows-install.yml'
+      - 'packaging/windows/**'
+      - 'tests/windows/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    env:
+      LEXLOCK_INSTALL_NONINTERACTIVE: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - name: PowerShell regression checks
+        shell: powershell
+        run: ./tests/windows/test_installer.ps1
+      - name: Install Inno Setup
+        run: choco install innosetup -y
+      - name: Build installer
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "packaging\windows\installer.iss"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Install EXE including Python, Ollama and model download
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP 'LexLock install test'
+          $exe = (Get-ChildItem dist\*-win-setup.exe | Select-Object -First 1).FullName
+          $log = Join-Path $env:RUNNER_TEMP 'lexlock-setup.log'
+          $arguments = '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /DIR="' + $root + '" /LOG="' + $log + '"'
+          $process = Start-Process $exe -ArgumentList $arguments -PassThru -Wait
+          if ($process.ExitCode -ne 0) { throw "Installer failed: $($process.ExitCode)" }
+          if (-not (Test-Path "$root\.lexlock_install_ok")) { throw 'Component installation did not complete' }
+      - name: Start installed launcher and check application and live model
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP 'LexLock install test'
+          Start-Process "$env:WINDIR\System32\wscript.exe" -ArgumentList ('"' + $root + '\packaging\windows\run.vbs"')
+          & "$root\.venv\Scripts\python.exe" tests/windows/smoke_installed.py --root "$root"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save installer and diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installation-evidence
+          path: |
+            dist/*-win-setup.exe
+            ${{ runner.temp }}/lexlock-setup.log
+            ${{ runner.temp }}/LexLock install test/install.log
+            ${{ runner.temp }}/LexLock install test/lexlock.log
+          if-no-files-found: warn

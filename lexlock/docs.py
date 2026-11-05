@@ -17,6 +17,20 @@ _ODT_NS = "{urn:oasis:names:tc:opendocument:xmlns:text:1.0}"
 _PLACEHOLDER_RE = re.compile(r"\{\{\s*([^{}]+?)\s*\}\}")
 
 
+def safe_workspace_path(workspace: Path, name: str) -> Path:
+    """Имя файла внутри рабочей папки, без путей и символических ссылок."""
+    if not isinstance(name, str) or not name or name in (".", "..") or "\x00" in name:
+        raise ValueError("недопустимое имя файла")
+    if "/" in name or "\\" in name or ":" in name or Path(name).name != name:
+        raise ValueError("имя файла не должно содержать путь")
+    path = workspace / name
+    if path.is_symlink():
+        raise ValueError("символьные ссылки запрещены")
+    if not path.resolve().is_relative_to(workspace.resolve()):
+        raise ValueError("файл находится вне рабочей папки")
+    return path
+
+
 def _read_docx(path: Path) -> str:
     doc = Document(str(path))
     parts: list[str] = []
@@ -120,7 +134,7 @@ def read_folder(folder: str | Path, limit_chars: int = 20000) -> str:
     chunks: list[str] = []
     total = 0
     for item in sorted(f.iterdir()):
-        if not item.is_file():
+        if not item.is_file() or item.is_symlink():
             continue
         if item.suffix.lower() not in (TEXT_EXT | _DOCX_PDF_EXT | ODT_EXT | ocr.IMAGE_EXT):
             continue

@@ -58,6 +58,19 @@ Name: "desktopicon"; Description: "Создать ярлык на рабочем
 Filename: "powershell.exe"; \
     Parameters: "-ExecutionPolicy Bypass -File ""{app}\packaging\windows\install.ps1"""; \
     WorkingDir: "{app}"; StatusMsg: "Устанавливаю окружение, Ollama и модель..."; \
-    Flags: runhidden waituntilterminated
+    Flags: runhidden waituntilterminated; BeforeInstall: ResetComponentStatus; AfterInstall: CheckComponentStatus
 Filename: "{sys}\wscript.exe"; Parameters: """{app}\packaging\windows\run.vbs"""; \
     Description: "Запустить «ЛексЛок»"; Flags: postinstall nowait skipifsilent
+
+[Code]
+procedure ResetComponentStatus;
+begin
+  DeleteFile(ExpandConstant('{app}\.lexlock_install_ok'));
+end;
+
+procedure CheckComponentStatus;
+begin
+  if not FileExists(ExpandConstant('{app}\.lexlock_install_ok')) then
+    RaiseException('Не удалось установить компоненты. Подробности: ' +
+      ExpandConstant('{app}\install.log') + '. Повторите через ярлык «Установить компоненты».');
+end;
