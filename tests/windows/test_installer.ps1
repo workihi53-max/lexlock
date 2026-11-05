@@ -27,4 +27,7 @@ $script:Attempts = 0
 $Failed = $false
 try { Wait-Ollama -Attempts 2 } catch { $Failed = $true }
 if (-not $Failed) { throw "Readiness failure was ignored" }
+# Гасим чужой код выхода от намеренного probe «exit 7»: иначе шаг CI падает,
+# хотя все проверки прошли (раннер смотрит на хвостовой $LASTEXITCODE).
+Invoke-Checked $Engine @("-NoProfile", "-Command", "exit 0")
 Write-Host "PASS: PowerShell syntax, native exit codes, readiness retries and failure"
