@@ -39,6 +39,7 @@
 │   ├── checklists.py             чек-листы договоров по типам
 │   ├── audit.py                  журнал аудита с hash-цепочкой (защита от подделки)
 │   ├── updater.py                проверка подписи и применение офлайн-обновлений
+│   ├── analysis.py               классификация, паспорт документа, очистка OCR, нормализация дат
 │   ├── tools.py
 │   ├── agent.py
 │   ├── scenarios.py
@@ -157,7 +158,7 @@ class Tool:
     parameters: dict          # JSON Schema
     fn: Callable[..., dict]
 
-TOOLS: list[Tool]             # ровно 10 штук, см. таблицу ниже
+TOOLS: list[Tool]             # ровно 13 штук, см. таблицу ниже
 def tool_schemas() -> list[dict]: ...       # формат Ollama: {"type":"function","function":{...}}
 def dispatch(name: str, arguments: dict) -> dict:
     """Возвращает {"ok": True, "result": ...} либо {"ok": False, "error": "..."}.
@@ -170,12 +171,15 @@ def dispatch(name: str, arguments: dict) -> dict:
 | `read_document` | `{"filename": str}` | текст документа из workspace |
 | `extract_requisites` | `{"filename": str}` | реквизиты из документа (детерминированно) |
 | `fill_contract` | `{"source_filename": str?, "out_name": str?}` | извлекает реквизиты и заполняет `templates/dogovor_template.docx`, кладёт в workspace. `source_filename` пустой/отсутствует → режим «пакет»: берутся ВСЕ документы workspace |
-| `find_risks` | `{"filename": str, "side"?: "neutral|customer|contractor"}` | LLM-анализ рисков договора → `{"summary","risks":[...]}` |
+| `find_risks` | `{"filename": str, "side"?: "neutral"}` | проверка явных опасных условий по ключевым маркерам (детерминированно, без LLM) |
 | `check_contract` | `{"filename": str, "contract_type": str?}` | проверка договора по чек-листу (детерминированно) |
 | `search_documents` | `{"query": str}` | поиск фрагментов по всем документам workspace с указанием файла-источника |
-| `summarize` | `{"filename": str}` | краткое резюме документа (LLM) |
-| `compare_documents` | `{"a": str, "b": str}` | сравнение двух документов (LLM) |
+| `summarize` | `{"filename": str}` | паспорт документа: тип, стороны, дата, номер, сумма, предмет (детерминированно) |
+| `compare_documents` | `{"a": str, "b": str}` | сравнение двух документов по извлечённым полям (детерминированно) |
 | `write_report` | `{"name": str, "content": str}` | сохраняет текстовый отчёт в workspace |
+| `recognize_document` | `{"filename": str}` | OCR скана + очистка текста моделью + паспорт документа |
+| `document_structure` | `{"filename": str}` | оглавление документа: нумерованные разделы и пункты (детерминированно) |
+| `check_consistency` | `{}` | сверка ИНН/ОГРН/КПП/БИК/счетов между документами workspace (детерминированно) |
 
 ### 2.7 `lexlock/agent.py`
 
@@ -199,9 +203,9 @@ class Agent:
 
 Перед отправкой в LLM документ режется не по первым `max_ctx_chars`, а через
 `rag.select_relevant(text, query, max_ctx_chars)` — подбор релевантных абзацев.
-Успешные ответы `find_risks`/`ask` кэшируются на диск (`cache.py`, ключ — хеш
-модели + текста документа + вопроса); повторный вызов мгновенный. При отключённом
-кэше (`LEXLOCK_CACHE=0`) поведение прежнее, только без ускорения.
+Успешные ответы `ask` кэшируются на диск (`cache.py`, ключ — хеш модели + текста
+документа + вопроса); повторный вызов мгновенный. `find_risks` и прочие
+детерминированные сценарии не кэшируются — они и так мгновенные.
 
 ```python
 def fill_contract(source_filename: str | None = None, out_name: str | None = None) -> dict
@@ -210,24 +214,41 @@ def fill_contract(source_filename: str | None = None, out_name: str | None = Non
     # {"ok": True, "out_path": str, "fields": {...}, "missing": [...], "log": [str,...]}
     # В результат добавить "package_mode": bool и "sources": [имена использованных файлов]
 def find_risks(filename: str, side: str = "neutral") -> dict
-    # {"ok": True, "summary": str, "risks": [{"punkt","risk","level","recommendation"}], "log":[...],
-    #  "fallback": bool, "cached": bool}  — если LLM недоступна, отдаёт эвристический список и fallback=True
+    # Детерминированный поиск рисков по явным условиям (пролонгация, односторонний
+    # отказ, неустойка, штраф, подсудность). Без LLM; side принимается для совместимости,
+    # но эвристика стороне не различает интересы сторон.
+    # {"ok": True, "summary": str, "side": str, "risks": [{"punkt","risk","level","recommendation"}],
+    #  "fallback": False, "cached": False}
 def ask(filename: str, question: str) -> dict
     # {"ok": True, "answer": str, "sources": [{"filename","score","snippet"}], "cached": bool}
+    # Ответ — строго цитатой из документа (extractive), без свободных рассуждений.
 def search_documents(query: str) -> dict
     # детерминированный поиск по всем документам workspace (RAG-lite):
     # {"ok": True, "query": str, "matches": [{"filename","score","snippet"}]}
 def summarize(filename: str) -> dict
-    # {"ok": True, "filename": str, "summary": str}  — LLM; при сбое {"ok": False, "error": ...}
+    # паспорт документа (детерминированно, без LLM):
+    # {"ok": True, "filename": str, "type": str, "parties": [str], "date": str,
+    #  "number": str, "sum": str, "subject": str}
 def compare_documents(a: str, b: str) -> dict
-    # {"ok": True, "a": str, "b": str, "comparison": str}  — LLM; при сбое {"ok": False, "error": ...}
+    # сравнение по извлечённым полям (детерминированно, без LLM):
+    # {"ok": True, "a": str, "b": str, "differences": [str],
+    #  "a_passport": {...}, "b_passport": {...}}
+def recognize_document(filename: str) -> dict
+    # OCR (если скан/изображение) + очистка текста + паспорт документа:
+    # {"ok": True, "filename": str, "ocr": bool, "cleaned_by_model": bool,
+    #  "text": str, "type": str, "parties": [str], ...}
+def document_structure(filename: str) -> dict
+    # оглавление документа: {"ok": True, "filename": str, "type": str, "sections": [...]}
+def check_consistency() -> dict
+    # сверка реквизитов между документами workspace:
+    # {"ok": True, "documents": [str], "discrepancies": [{"field","values":[...]}]}
 def export_risks(filename: str, side: str = "neutral") -> dict
-    # find_risks() + сохранение отчёта в .docx: {"ok": True, "out_path": str,
-    #  "download_name": str, "risks": [...], "fallback": bool}
+    # find_risks() + сохранение отчёта в .docx (с дисклеймером):
+    # {"ok": True, "out_path": str, "download_name": str, "risks": [...], "fallback": bool}
 def check_contract(filename: str, contract_type: str | None = None) -> dict
     # проверка по чек-листу; тип определяется автоматически или задан вручную:
     # {"ok": True, "contract_type": str, "items": [{"code","item","present"}],
-    #  "missing": [str], "score": int}  — детерминированно, без LLM
+    #  "missing": [str], "found": int, "total": int}  — детерминированно, без LLM
 ```
 
 Если задан `LEXLOCK_LLM_EXTRACT=1`, `fill_contract` дозаполняет ненайденные поля
@@ -246,6 +267,9 @@ def check_contract(filename: str, contract_type: str | None = None) -> dict
 | POST | `/api/scenario/risks` | `{"filename"}` → `scenarios.find_risks` |
 | POST | `/api/scenario/export_risks` | `{"filename"}` → `scenarios.export_risks` (отчёт `.docx`) |
 | POST | `/api/scenario/checklist` | `{"filename","contract_type"?}` → `scenarios.check_contract` (чек-лист) |
+| POST | `/api/scenario/recognize` | `{"filename"}` → `scenarios.recognize_document` (OCR + паспорт) |
+| POST | `/api/scenario/structure` | `{"filename"}` → `scenarios.document_structure` (оглавление) |
+| POST | `/api/scenario/consistency` | `{}` → `scenarios.check_consistency` (сверка реквизитов пакета) |
 | POST | `/api/scenario/ask` | `{"filename","question"}` → `scenarios.ask` |
 | POST | `/api/chat` | SSE-поток `Event` из `Agent.run` (JSON-строки, `data: {...}\n\n`) |
 | GET | `/api/download/{name}` | отдаёт файл из workspace |
@@ -298,7 +322,10 @@ def check_contract(filename: str, contract_type: str | None = None) -> dict
 
 ### Позиция анализа рисков
 
-API risks/export_risks принимает необязательный side: neutral (по умолчанию), customer или contractor. Результат содержит side; ключ кэша включает сторону и версию промпта. Экспорт сохраняет выбранную позицию. Эвристический fallback остаётся общим и явно сообщает, что сторону не учитывает. Невыгодность условия не равна нарушению закона.
+API `risks`/`export_risks` принимает необязательный `side` (`neutral`/`customer`/`contractor`)
+для совместимости сигнатуры, но проверка рисков детерминирована и **не персонализируется**
+по стороне: список рисков одинаков для всех значений `side`. В UI селектор стороны убран.
+Эвристика ищет явные условия по ключевым маркерам; невыгодность условия не равна нарушению закона.
 
 ### Обработка ошибок и границы рабочей папки
 

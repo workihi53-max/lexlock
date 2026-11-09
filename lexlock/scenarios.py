@@ -435,13 +435,13 @@ def check_contract(filename: str, contract_type: str | None = None) -> dict:
     items = checklists.evaluate(text, ctype)
     missing = [item["item"] for item in items if not item["present"]]
     found = len(items) - len(missing)
-    score = round(found / len(items) * 100) if items else 0
     return {
         "ok": True,
         "contract_type": ctype,
         "items": items,
         "missing": missing,
-        "score": score,
+        "found": found,
+        "total": len(items),
     }
 
 

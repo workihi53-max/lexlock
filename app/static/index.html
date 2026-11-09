@@ -791,8 +791,13 @@ function renderChecklist(data, out) {
     showError(out, data.error || "Не удалось построить чек-лист.");
     return;
   }
+  const found = Number(data.found ?? data.items.filter(i => i.present).length);
+  const total = Number(data.total ?? data.items.length);
   let html = '<div class="answer">Тип договора: ' + esc(data.contract_type) +
-    " · выполнено " + esc(String(data.score)) + "%</div>";
+    " · найдено " + esc(String(found)) + " из " + esc(String(total)) + "</div>";
+  if (data.missing && data.missing.length) {
+    html += '<div class="notice">Не найдено: ' + data.missing.map(esc).join(", ") + "</div>";
+  }
   for (const item of data.items) {
     html += '<div class="risk-item l-' + (item.present ? "low" : "high") + '">' +
       '<div class="r-head">' + (item.present ? "✓" : "✗") + " " +

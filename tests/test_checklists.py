@@ -36,7 +36,7 @@ def test_check_contract_scenario(tmp_path, monkeypatch):
     result = scenarios.check_contract("d.txt")
     assert result["ok"] is True
     assert result["contract_type"] == "услуги"
-    assert 0 <= result["score"] <= 100
+    assert result["found"] + len(result["missing"]) == result["total"]
     assert "ответственность" in " ".join(result["missing"]).lower()
 
 

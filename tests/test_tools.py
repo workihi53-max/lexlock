@@ -233,7 +233,7 @@ def test_check_contract_tool(tmp_path, monkeypatch):
     assert result["ok"] is True
     body = result["result"]
     assert body["contract_type"] == "услуги"
-    assert "items" in body and "score" in body
+    assert "items" in body and "found" in body and "total" in body
 
 
 def test_summarize_tool_deterministic(tmp_path, monkeypatch):

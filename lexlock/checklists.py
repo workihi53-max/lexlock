@@ -1,10 +1,19 @@
 """Чек-листы проверки договоров по типам. Детерминированно, без LLM.
 
 Для каждого типа договора — набор обязательных условий. Проверка ищет ключевые
-маркеры в тексте и помечает условие как присутствующее или отсутствующее.
+маркеры по границе слова, чтобы короткий корень не срабатывал внутри другого слова
+(«спор» в «паспорт», «подпись» в «подписание»).
 """
 
 from __future__ import annotations
+
+import re
+
+
+def _has_marker(text: str, marker: str) -> bool:
+    """Маркер ищется как начало слова (\b), чтобы «спор» не цеплялся за «паспорт»."""
+    return re.search(r"\b" + re.escape(marker), text) is not None
+
 
 # Тип договора: маркеры для автоопределения.
 CONTRACT_TYPES: dict[str, list[str]] = {
@@ -26,7 +35,7 @@ CHECKLISTS: dict[str, list[tuple[str, str, list[str]]]] = {
         ("otvet", "Есть ответственность сторон", ["ответственн", "неустойк", "пеня", "штраф"]),
         ("rastorzh", "Описан порядок расторжения", ["расторж", "отказ"]),
         ("spory", "Порядок разрешения споров", ["спор", "подсудн", "претенз"]),
-        ("rekvizity", "Есть реквизиты и подписи сторон", ["инн", "огрн", "адрес", "подпис"]),
+        ("rekvizity", "Есть реквизиты и подписи сторон", ["инн", "огрн", "кпп", "юридическ", "банк", "реквизит", "подпись"]),
     ],
     "поставка": [
         ("predmet", "Описан предмет и ассортимент", ["предмет", "товар", "ассортимент"]),
@@ -82,7 +91,7 @@ def detect_contract_type(text: str) -> str:
     best_type = "услуги"
     best_score = 0
     for name, markers in CONTRACT_TYPES.items():
-        score = sum(1 for marker in markers if marker in lowered)
+        score = sum(1 for marker in markers if _has_marker(lowered, marker))
         if score > best_score:
             best_type, best_score = name, score
     return best_type
@@ -96,7 +105,7 @@ def evaluate(text: str, contract_type: str) -> list[dict]:
         {
             "code": code,
             "item": title,
-            "present": any(marker in lowered for marker in markers),
+            "present": any(_has_marker(lowered, marker) for marker in markers),
         }
         for code, title, markers in rules
     ]

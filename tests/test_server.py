@@ -282,14 +282,14 @@ def test_scenario_export_risks(client, monkeypatch):
 def test_scenario_checklist(client, monkeypatch):
     monkeypatch.setattr(server, "lexlock_scenarios", fake_scenarios(
         check_contract=lambda filename, contract_type=None: {
-            "ok": True, "contract_type": "услуги", "score": 75,
+            "ok": True, "contract_type": "услуги", "found": 1, "total": 1,
             "items": [{"code": "cena", "item": "цена", "present": True}],
             "missing": [],
         }))
     r = client.post("/api/scenario/checklist", json={"filename": "a.txt"})
     assert r.status_code == 200
     assert r.json()["contract_type"] == "услуги"
-    assert r.json()["score"] == 75
+    assert r.json()["found"] == 1
 
 
 def test_scenario_ask_empty_question_400(client, monkeypatch):
