@@ -30,12 +30,21 @@ bash packaging/macos/build_dmg.sh   # → dist/LexLock-0.2.0.dmg
 
 ## Linux — AppImage с диалогами
 
-`AppRun` показывает прогресс через `zenity`/`kdialog` (если есть в системе), ставит
-компоненты и сам открывает браузер. Проект разворачивается в `~/lexlock`.
+`AppRun` показывает прогресс через `kdialog` (KDE), `zenity` (GNOME) или `xmessage`
+(если нет ни того, ни другого — работает молча, в журнал `~/.lexlock-install.log`),
+ставит компоненты и сам открывает браузер. Проект разворачивается в `~/lexlock`.
+
+Запуск пользователем — двумя действиями:
+1. скачать `.AppImage` и разрешить выполнение (правый клик → «Свойства» →
+   «Разрешить выполнение файла»);
+2. открыть двойным кликом.
+
+Если AppImage не запускается с ошибкой «cannot mount AppImage», нужен `fuse2`:
+`sudo pacman -S fuse2` (Arch/Manjaro) или `sudo apt install libfuse2` (Ubuntu/Debian).
 
 ```bash
-bash packaging/linux/build_appimage.sh   # → dist/LexLock-0.2.0-x86_64.AppImage
-chmod +x LexLock-0.2.0-x86_64.AppImage && ./LexLock-0.2.0-x86_64.AppImage
+bash packaging/linux/build_appimage.sh   # → dist/LexLock-<версия>-x86_64.AppImage
+chmod +x dist/LexLock-*.AppImage && ./dist/LexLock-*.AppImage
 ```
 
 ## Windows — установщик с ярлыками, сервер без консоли

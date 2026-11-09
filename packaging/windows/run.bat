@@ -23,6 +23,18 @@ if errorlevel 1 (
     timeout /t 3 /nobreak >nul
 )
 
-echo Открой http://127.0.0.1:%LEXLOCK_PORT%
+echo Запускаю ЛексЛок (сервер стартует в фоне)...
+start "" /b ".venv\Scripts\python.exe" -m app.server
+
+rem Ждём, пока сервер ответит, и только потом открываем браузер.
+set /a tries=0
+:waitloop
+curl -s --max-time 1 http://127.0.0.1:%LEXLOCK_PORT%/api/health >nul 2>&1
+if not errorlevel 1 goto opened
+set /a tries+=1
+if %tries% geq 60 goto opened
+timeout /t 1 /nobreak >nul
+goto waitloop
+
+:opened
 start "" "http://127.0.0.1:%LEXLOCK_PORT%"
-".venv\Scripts\python.exe" -m app.server

@@ -29,18 +29,48 @@ rsync -a \
 
 cat > "$APPDIR/AppRun" <<'EOF'
 #!/bin/bash
-# «ЛексЛок» на Linux: разворачиваем проект в домашний каталог (AppImage только для
-# чтения) и запускаем установку/сервер. Прогресс — через zenity/kdialog, если есть.
+# «ЛексЛок» на Linux: разворачивает проект в домашний каталог (AppImage только для
+# чтения) и запускает установку/сервер. Прогресс — через kdialog/zenity/xmessage.
 set -u
 HERE="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 TARGET="${LEXLOCK_DIR:-$HOME/lexlock}"
 LOG="$HOME/.lexlock-install.log"
 URL="http://127.0.0.1:8765"
 
-info()  { command -v zenity >/dev/null && zenity --info --title="ЛексЛок" --text="$1" --width=420 2>/dev/null; }
-error() { command -v zenity >/dev/null && zenity --error --title="ЛексЛок" --text="$1\n\nЖурнал: $LOG" --width=460 2>/dev/null; }
-ask()   { command -v zenity >/dev/null && zenity --question --title="ЛексЛок" --text="$1" --width=440 2>/dev/null; }
-note()  { command -v notify-send >/dev/null && notify-send "ЛексЛок" "$1" 2>/dev/null; }
+# Выбираем доступный GUI-диалог: на KDE — kdialog, на GNOME — zenity, иначе xmessage.
+DIALOG=""
+for d in kdialog zenity xmessage; do
+    command -v "$d" >/dev/null 2>&1 && { DIALOG="$d"; break; }
+done
+
+info() {
+    case "$DIALOG" in
+        kdialog) kdialog --title "ЛексЛок" --msgbox "$1" 2>/dev/null ;;
+        zenity)  zenity --info --title="ЛексЛок" --text="$1" --width=420 2>/dev/null ;;
+        xmessage) xmessage -center -buttons OK "$1" 2>/dev/null ;;
+        *) echo "[info] $1" >>"$LOG" ;;
+    esac
+    return 0
+}
+error() {
+    case "$DIALOG" in
+        kdialog) kdialog --title "ЛексЛок" --error "$1" 2>/dev/null ;;
+        zenity)  zenity --error --title="ЛексЛок" --text="$1" --width=460 2>/dev/null ;;
+        xmessage) xmessage -center -buttons OK "Ошибка: $1" 2>/dev/null ;;
+        *) echo "[error] $1" >>"$LOG" ;;
+    esac
+    return 0
+}
+confirm() {
+    # 0 = «да». Если GUI-диалога нет — продолжаем автоматически (не блокируем).
+    case "$DIALOG" in
+        kdialog) kdialog --title "ЛексЛок" --yesno "$1" 2>/dev/null ;;
+        zenity)  zenity --question --title="ЛексЛок" --text="$1" --width=440 2>/dev/null ;;
+        xmessage) xmessage -center -buttons "Да:0,Нет:1" "$1" 2>/dev/null ;;
+        *) return 0 ;;
+    esac
+}
+note() { command -v notify-send >/dev/null 2>&1 && notify-send "ЛексЛок" "$1" 2>/dev/null || true; }
 
 refresh_code() {
     # Первый запуск: подтягиваем свежий код ветки main (правки после сборки
@@ -65,7 +95,9 @@ refresh_code() {
 }
 
 if [ ! -x "$TARGET/.venv/bin/python" ]; then
-    info "ЛексЛок установится и откроется в браузере.\nПервый запуск скачает свежий код, компоненты и модель (~2 ГБ)." || exit 0
+    if [ -n "$DIALOG" ]; then
+        confirm "ЛексЛок установится и откроется в браузере.\nПервый запуск скачает свежий код, компоненты и модель (~2 ГБ).\n\nПродолжить?" || exit 0
+    fi
     if [ ! -d "$TARGET" ]; then
         mkdir -p "$TARGET"
         cp -R "$HERE/app/." "$TARGET/"
@@ -73,18 +105,18 @@ if [ ! -x "$TARGET/.venv/bin/python" ]; then
     cd "$TARGET" || exit 1
     refresh_code >>"$LOG" 2>&1
     if ! ./install.sh >>"$LOG" 2>&1; then
-        error "Не удалось установить. Проверьте интернет и попробуйте снова."
+        error "Не удалось установить. Проверьте интернет и попробуйте снова.\n\nЖурнал: $LOG"
         exit 1
     fi
 fi
 
 cd "$TARGET" || exit 1
 ( ./run.sh --no-browser >>"$LOG" 2>&1 & )
-for _ in $(seq 1 40); do
+for _ in $(seq 1 60); do
     curl -s --max-time 1 "$URL/api/health" >/dev/null 2>&1 && break
     sleep 1
 done
-command -v xdg-open >/dev/null && xdg-open "$URL" >/dev/null 2>&1 || true
+command -v xdg-open >/dev/null 2>&1 && xdg-open "$URL" >/dev/null 2>&1 || true
 note "ЛексЛок запущен — открываю браузер."
 EOF
 chmod +x "$APPDIR/AppRun"
