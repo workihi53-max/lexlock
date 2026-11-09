@@ -17,6 +17,7 @@ from typing import Any, Literal
 
 import uvicorn
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -108,6 +109,14 @@ def create_app(config: Any | None = None) -> FastAPI:
         yield
 
     app = FastAPI(title="ЛексЛок — локальный юридический ИИ", lifespan=lifespan)
+
+    # Защита от DNS-rebinding: сервер принимает запросы только с loopback-адресов.
+    # Иначе страница со стороннего домена (резолвящегося на 127.0.0.1) может читать
+    # документы через браузер юриста. «testserver» — host тестового клиента.
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=["127.0.0.1", "localhost", "::1", "testserver"],
+    )
 
     # --- статика ---------------------------------------------------------------
 
