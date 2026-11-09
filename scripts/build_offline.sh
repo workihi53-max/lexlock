@@ -90,10 +90,26 @@ NAMEPART="${MODEL%%:*}"; TAG="${MODEL##*:}"
 MAN="$MODELS_SRC/manifests/registry.ollama.ai/library/$NAMEPART/$TAG"
 if [ ! -f "$MAN" ]; then
     echo "    Нет локально — скачиваю через Ollama..."
-    if [ "$PLAT" != win ] && { [ "$PLAT" = mac ] || [ "$PLAT" = linux ]; }; then OLL="$OLL_BUNDLED"; else OLL="$(command -v ollama || true)"; fi
-    [ -n "$OLL" ] || { echo "Нужна установленная ollama, чтобы скачать $MODEL" >&2; exit 1; }
+    if [ "$PLAT" != win ]; then
+        OLL="$OLL_BUNDLED"
+    elif command -v ollama >/dev/null 2>&1; then
+        OLL="$(command -v ollama)"
+    else
+        # Кросс-сборка под Windows: берём Ollama под хост-систему только чтобы скачать модель.
+        HOSTDIR="$CACHE/ollama-host"; mkdir -p "$HOSTDIR"
+        if [ "$HOST" = Linux ]; then
+            fetch "$OLLAMA_REL/ollama-linux-amd64.tar.zst" "$CACHE/ollama-linux.tar.zst"
+            zstd -dc "$CACHE/ollama-linux.tar.zst" | tar -x -C "$HOSTDIR"
+            OLL="$HOSTDIR/bin/ollama"
+        else
+            fetch "$OLLAMA_REL/ollama-darwin.tgz" "$CACHE/ollama-darwin.tgz"
+            tar -xzf "$CACHE/ollama-darwin.tgz" -C "$HOSTDIR"
+            OLL="$HOSTDIR/ollama"; [ -x "$OLL" ] || OLL="$HOSTDIR/bin/ollama"
+        fi
+        chmod +x "$OLL"
+    fi
     OLLAMA_MODELS="$MODELS_SRC" OLLAMA_HOST=127.0.0.1:11499 "$OLL" serve >/dev/null 2>&1 & SPID=$!
-    sleep 5
+    for _ in $(seq 1 30); do curl -s -m 1 http://127.0.0.1:11499/api/tags >/dev/null 2>&1 && break; sleep 1; done
     OLLAMA_HOST=127.0.0.1:11499 "$OLL" pull "$MODEL"
     kill "$SPID" 2>/dev/null || true
 fi

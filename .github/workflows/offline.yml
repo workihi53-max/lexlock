@@ -58,8 +58,9 @@ jobs:
       - name: Уложиться в лимит 2 ГиБ (иначе облегчённая модель)
         if: matrix.target == 'macos'
         run: |
+          set -x
           F="$(ls dist/*-offline.dmg | head -1)"
-          if [ "$(stat -f%z "$F")" -gt "$LIMIT_BYTES" ]; then
+          if [ "$(wc -c < "$F")" -gt "$LIMIT_BYTES" ]; then
             echo "dmg больше 2 ГиБ - пересобираю с qwen2.5:1.5b"
             bash scripts/build_offline.sh macos qwen2.5:1.5b
           fi
