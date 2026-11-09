@@ -209,11 +209,16 @@ else
         done
     fi
     if curl -s --max-time 2 http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
-        echo "==> Скачивание модели $MODEL (может занять время)"
-        "$OLLAMA_BIN" pull "$MODEL" || {
-            echo "    Предупреждение: не удалось скачать модель $MODEL." >&2
-            echo "    Повторите позже: $OLLAMA_BIN pull $MODEL" >&2
-        }
+        # Модель уже установлена — интернет не тратим, скачивание пропускаем.
+        if "$OLLAMA_BIN" list 2>/dev/null | grep -q "^$MODEL[[:space:]]"; then
+            echo "    Модель $MODEL уже установлена — скачивание не нужно."
+        else
+            echo "==> Скачивание модели $MODEL (может занять время)"
+            "$OLLAMA_BIN" pull "$MODEL" || {
+                echo "    Предупреждение: не удалось скачать модель $MODEL." >&2
+                echo "    Повторите позже: $OLLAMA_BIN pull $MODEL" >&2
+            }
+        fi
     else
         echo "    Предупреждение: Ollama не запустилась на 127.0.0.1:11434." >&2
         echo "    Запустите вручную и повторите: $OLLAMA_BIN pull $MODEL" >&2
@@ -223,6 +228,28 @@ fi
 echo "==> Генерация шаблона и тестовых данных"
 "$VENV/bin/python" "$ROOT/scripts/make_template.py"
 "$VENV/bin/python" "$ROOT/scripts/demo_data.py"
+
+# Ярлык в меню приложений Linux — чтобы «ЛексЛок» запускался как обычная программа.
+if [ "$OS" = "Linux" ]; then
+    APPS="$HOME/.local/share/applications"
+    ICONS="$HOME/.local/share/icons/hicolor/256x256/apps"
+    mkdir -p "$APPS" "$ICONS"
+    cat > "$APPS/lexlock.desktop" <<DESK
+[Desktop Entry]
+Type=Application
+Name=ЛексЛок
+Comment=Локальный офлайн ИИ-помощник юриста
+Exec=$ROOT/run.sh
+Icon=lexlock
+Terminal=false
+Categories=Office;Utility;
+DESK
+    if [ -f "$ROOT/packaging/linux/lexlock.png" ]; then
+        cp "$ROOT/packaging/linux/lexlock.png" "$ICONS/lexlock.png"
+    fi
+    command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$APPS" 2>/dev/null || true
+    echo "    Ярлык добавлен в меню приложений."
+fi
 
 echo
 echo "Готово. Запусти ./run.sh"

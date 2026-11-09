@@ -72,6 +72,27 @@ confirm() {
 }
 note() { command -v notify-send >/dev/null 2>&1 && notify-send "ЛексЛок" "$1" 2>/dev/null || true; }
 
+install_desktop_entry() {
+    # Добавляем «ЛексЛок» в меню приложений (ярлык запускает ~/lexlock/run.sh).
+    local apps="$HOME/.local/share/applications"
+    local icons="$HOME/.local/share/icons/hicolor/256x256/apps"
+    mkdir -p "$apps" "$icons"
+    cat > "$apps/lexlock.desktop" <<DESK
+[Desktop Entry]
+Type=Application
+Name=ЛексЛок
+Comment=Локальный офлайн ИИ-помощник юриста
+Exec=$TARGET/run.sh
+Icon=lexlock
+Terminal=false
+Categories=Office;Utility;
+DESK
+    if [ -f "$HERE/lexlock.png" ]; then
+        cp "$HERE/lexlock.png" "$icons/lexlock.png" 2>/dev/null || true
+    fi
+    command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$apps" 2>/dev/null || true
+}
+
 refresh_code() {
     # Первый запуск: подтягиваем свежий код ветки main (правки после сборки
     # AppImage тоже попадут). При неудаче молча остаёмся на коде из AppImage.
@@ -109,6 +130,8 @@ if [ ! -x "$TARGET/.venv/bin/python" ]; then
         exit 1
     fi
 fi
+
+install_desktop_entry
 
 cd "$TARGET" || exit 1
 ( ./run.sh --no-browser >>"$LOG" 2>&1 & )

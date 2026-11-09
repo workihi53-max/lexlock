@@ -135,8 +135,14 @@ try {
     Start-Process ollama -ArgumentList "serve" -WindowStyle Hidden
 }
 Wait-Ollama
-# Ошибка загрузки обязательной модели не должна превращаться в «Готово».
-Invoke-Checked ollama @("pull", $model)
+# Модель уже установлена — интернет не тратим, скачивание пропускаем.
+$alreadyHave = & ollama list 2>$null | Select-String -SimpleMatch $model
+if ($alreadyHave) {
+    Write-Host "    Модель $model уже установлена — скачивание не нужно."
+} else {
+    # Ошибка загрузки обязательной модели не должна превращаться в «Готово».
+    Invoke-Checked ollama @("pull", $model)
+}
 
 # --- Шаг 6/6: шаблон договора и примеры ---
 Write-Host "[6/6] Готовлю шаблон договора и примеры..."

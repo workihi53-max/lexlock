@@ -25,6 +25,8 @@ WizardStyle=modern
 InfoBeforeFile={#SourcePath}\pred_ustanovkoy.txt
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+SetupIconFile={#SourcePath}\lexlock.ico
+UninstallDisplayIcon={#SourcePath}\lexlock.ico
 
 [Languages]
 Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
@@ -46,11 +48,11 @@ Source: "..\..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\packaging\windows\*"; DestDir: "{app}\packaging\windows"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]
-Name: "{group}\ЛексЛок"; Filename: "{sys}\wscript.exe"; Parameters: """{app}\packaging\windows\run.vbs"""; WorkingDir: "{app}"; Comment: "Запустить «ЛексЛок» (сервер + браузер)"
+Name: "{group}\ЛексЛок"; Filename: "{sys}\wscript.exe"; Parameters: """{app}\packaging\windows\run.vbs"""; WorkingDir: "{app}"; Comment: "Запустить «ЛексЛок» (сервер + браузер)"; IconFilename: "{app}\packaging\windows\lexlock.ico"
 Name: "{group}\Установить компоненты"; Filename: "powershell.exe"; \
     Parameters: "-ExecutionPolicy Bypass -File ""{app}\packaging\windows\install.ps1"""; \
     WorkingDir: "{app}"; Comment: "Докачать Python-окружение, Ollama и модель (нужен интернет, ~2 ГБ)"
-Name: "{autodesktop}\ЛексЛок"; Filename: "{sys}\wscript.exe"; Parameters: """{app}\packaging\windows\run.vbs"""; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{autodesktop}\ЛексЛок"; Filename: "{sys}\wscript.exe"; Parameters: """{app}\packaging\windows\run.vbs"""; WorkingDir: "{app}"; Tasks: desktopicon; IconFilename: "{app}\packaging\windows\lexlock.ico"
 
 [Tasks]
 Name: "desktopicon"; Description: "Создать ярлык на рабочем столе"; GroupDescription: "Дополнительно:"
