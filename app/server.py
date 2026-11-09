@@ -62,6 +62,10 @@ class ChatRequest(BaseModel):
     history: list[dict] | None = None
 
 
+class RecognizeRequest(BaseModel):
+    filename: str
+
+
 # --- проверка имён файлов -----------------------------------------------------
 
 def _checked_path(workspace: Path, name: str) -> Path:
@@ -230,6 +234,14 @@ def create_app(config: Any | None = None) -> FastAPI:
         _checked_path(workspace, req.filename)
         try:
             return lexlock_scenarios.check_contract(req.filename, req.contract_type)
+        except Exception as exc:
+            raise _scenario_error(str(exc)) from exc
+
+    @app.post("/api/scenario/recognize")
+    def scenario_recognize(req: RecognizeRequest):
+        _checked_path(workspace, req.filename)
+        try:
+            return lexlock_scenarios.recognize_document(req.filename)
         except Exception as exc:
             raise _scenario_error(str(exc)) from exc
 

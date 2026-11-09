@@ -425,6 +425,14 @@
     </section>
 
     <section class="card">
+      <h2>Распознать документ (OCR)</h2>
+      <p class="desc">Распознаёт скан или фото, очищает текст от артефактов и разбирает документ: тип, стороны, дата, номер, сумма, предмет. Работает и без модели.</p>
+      <p class="selected-line" id="sel-recognize"></p>
+      <button id="btn-recognize">Распознать и разобрать</button>
+      <div class="result" id="recognize-result"></div>
+    </section>
+
+    <section class="card">
       <h2>Спросить по документу</h2>
       <p class="desc">Задайте вопрос по содержимому выбранного документа — ЛексЛок ответит на русском.</p>
       <p class="selected-line" id="sel-ask"></p>
@@ -548,6 +556,7 @@ function updateSelectedLines() {
   $("sel-fill").innerHTML = txt;
   $("sel-risks").innerHTML = txt;
   $("sel-checklist").innerHTML = txt;
+  $("sel-recognize").innerHTML = txt;
   $("sel-ask").innerHTML = txt;
   $("btn-fill").disabled = !state.selected;
 }
@@ -771,10 +780,37 @@ function renderChecklist(data, out) {
   out.innerHTML = html;
 }
 
+function renderRecognize(data, out) {
+  if (data.ok === false || data.error) {
+    showError(out, data.error || "Не удалось распознать документ.");
+    return;
+  }
+  let html = "";
+  if (data.ocr) html += '<div class="notice">Текст получен через OCR (скан/изображение).</div>';
+  if (data.cleaned_by_model) html += '<div class="notice">Текст очищен моделью от артефактов распознавания.</div>';
+  html += '<div class="answer">Тип документа: <b>' + esc(data.type || "—") + "</b>";
+  if (data.parties && data.parties.length) {
+    html += "<br>Стороны: " + data.parties.map(esc).join(", ");
+  }
+  if (data.date) html += "<br>Дата: " + esc(data.date);
+  if (data.number) html += "<br>Номер: " + esc(data.number);
+  if (data.sum) html += "<br>Сумма: " + esc(data.sum);
+  html += "</div>";
+  if (data.subject) {
+    html += '<div class="answer" style="margin-top:8px"><b>Предмет:</b> ' + esc(data.subject) + "</div>";
+  }
+  if (data.text) {
+    html += '<details style="margin-top:10px"><summary>Показать распознанный текст</summary>' +
+      '<div class="answer" style="white-space:pre-wrap">' + esc(data.text) + "</div></details>";
+  }
+  out.innerHTML = html;
+}
+
 $("btn-fill").dataset.label = "Заполнить договор";
 $("btn-fill-package").dataset.label = "Заполнить по всему пакету";
 $("btn-risks").dataset.label = "Найти риски";
 $("btn-checklist").dataset.label = "Проверить чек-лист";
+$("btn-recognize").dataset.label = "Распознать и разобрать";
 $("btn-ask").dataset.label = "Спросить";
 
 $("btn-fill").addEventListener("click", () =>
@@ -795,6 +831,9 @@ $("btn-checklist").addEventListener("click", () => {
   runScenario($("btn-checklist"), "/api/scenario/checklist", body,
     renderChecklist, $("checklist-result"), true);
 });
+$("btn-recognize").addEventListener("click", () =>
+  runScenario($("btn-recognize"), "/api/scenario/recognize", { filename: state.selected },
+    renderRecognize, $("recognize-result"), true));
 $("btn-ask").addEventListener("click", () => {
   const q = $("ask-question").value.trim();
   if (!q) { showError($("ask-result"), "Введите вопрос."); return; }

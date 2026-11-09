@@ -30,7 +30,7 @@ def _ws(tmp_path, monkeypatch):
 
 def test_tool_schemas_shape():
     schemas = tools.tool_schemas()
-    assert len(schemas) == 10
+    assert len(schemas) == 11
     names = {s["function"]["name"] for s in schemas}
     assert names == {
         "list_files",
@@ -43,6 +43,7 @@ def test_tool_schemas_shape():
         "summarize",
         "compare_documents",
         "write_report",
+        "recognize_document",
     }
     for s in schemas:
         assert s["type"] == "function"
@@ -233,26 +234,24 @@ def test_check_contract_tool(tmp_path, monkeypatch):
     assert "items" in body and "score" in body
 
 
-def test_summarize_tool_error_path(tmp_path, monkeypatch):
+def test_summarize_tool_deterministic(tmp_path, monkeypatch):
     ws = _ws(tmp_path, monkeypatch)
-    (ws / "dog.txt").write_text("Договор.", encoding="utf-8")
-    # Модель недоступна — инструмент честно возвращает ошибку, а не падает.
-    monkeypatch.setattr(scenarios, "LLM", _FailingLLM)
+    (ws / "dog.txt").write_text("Договор. Сумма: 10000 рублей.", encoding="utf-8")
     result = tools.dispatch("summarize", {"filename": "dog.txt"})
     assert result["ok"] is True  # dispatch сам по себе успешен
-    assert result["result"]["ok"] is False  # а сценарий честно сообщает об ошибке
-    assert "error" in result["result"]
+    assert result["result"]["ok"] is True  # детерминированно, без модели
+    assert result["result"]["type"] == "договор"
 
 
-def test_compare_documents_tool_error_path(tmp_path, monkeypatch):
+def test_compare_documents_tool_deterministic(tmp_path, monkeypatch):
     ws = _ws(tmp_path, monkeypatch)
-    (ws / "a.txt").write_text("Договор A.", encoding="utf-8")
-    (ws / "b.txt").write_text("Договор B.", encoding="utf-8")
-    monkeypatch.setattr(scenarios, "LLM", _FailingLLM)
+    (ws / "a.txt").write_text("Договор A. Сумма: 1000 рублей.", encoding="utf-8")
+    (ws / "b.txt").write_text("Договор B. Сумма: 2000 рублей.", encoding="utf-8")
     result = tools.dispatch("compare_documents", {"a": "a.txt", "b": "b.txt"})
     assert result["ok"] is True
-    assert result["result"]["ok"] is False
-    assert "error" in result["result"]
+    assert result["result"]["ok"] is True
+    assert "differences" in result["result"]
+    assert any("sum" in d for d in result["result"]["differences"])
 
 
 def test_agent_cannot_read_or_write_outside_workspace(tmp_path, monkeypatch):

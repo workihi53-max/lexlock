@@ -180,26 +180,24 @@ def test_json_chat_invalid_raises():
 # --- сценарии с LLM ---
 
 
-def test_find_risks_fallback(tmp_path, monkeypatch):
+def test_find_risks_deterministic(tmp_path, monkeypatch):
     ws = _ws(tmp_path, monkeypatch)
     (ws / "dog.txt").write_text(
         "Договор с автопролонгацией, односторонним отказом и штрафом.",
         encoding="utf-8",
     )
-    monkeypatch.setattr(scenarios, "LLM", _FailingLLM)
     result = scenarios.find_risks("dog.txt")
     assert result["ok"] is True
-    assert result["fallback"] is True
+    assert result["fallback"] is False  # всегда детерминированно, без модели
     assert len(result["risks"]) >= 3
     assert set(result["risks"][0].keys()) == {"punkt", "risk", "level", "recommendation"}
 
 
-def test_find_risks_fallback_no_keywords(tmp_path, monkeypatch):
+def test_find_risks_no_keywords(tmp_path, monkeypatch):
     ws = _ws(tmp_path, monkeypatch)
     (ws / "dog.txt").write_text("Обычный договор без подозрительных слов.", encoding="utf-8")
-    monkeypatch.setattr(scenarios, "LLM", _FailingLLM)
     result = scenarios.find_risks("dog.txt")
-    assert result["fallback"] is True
+    assert result["fallback"] is False
     assert len(result["risks"]) == 1  # общий пункт «явных рисков нет»
 
 
@@ -237,18 +235,14 @@ class _CountingRiskLLM:
         }
 
 
-def test_find_risks_cached_on_second_call(tmp_path, monkeypatch):
+def test_find_risks_is_deterministic_no_model(tmp_path, monkeypatch):
     ws = _ws(tmp_path, monkeypatch)
     (ws / "dog.txt").write_text("Договор про неустойку.", encoding="utf-8")
-    fake = _CountingRiskLLM()
-    monkeypatch.setattr(scenarios, "LLM", lambda config=None: fake)
-
-    first = scenarios.find_risks("dog.txt")
-    assert first["cached"] is False
-    second = scenarios.find_risks("dog.txt")
-    assert second["cached"] is True
-    assert second["risks"] == first["risks"]
-    assert fake.calls == 1  # модель вызвана один раз
+    result = scenarios.find_risks("dog.txt")
+    assert result["ok"] is True
+    assert result["cached"] is False
+    assert result["fallback"] is False
+    assert any(r["punkt"] == "неустойка" for r in result["risks"])
 
 
 class _CountingAskLLM:
@@ -300,7 +294,7 @@ class _ExtractLLM:
 
     def json_chat(self, messages, schema_hint=""):
         self.calls += 1
-        return {"inn": "7701234567", "bik": ""}
+        return {"dolzhnost": "Генеральный директор", "bik": ""}
 
 
 def _tiny_template(tmp_path, monkeypatch):
@@ -324,8 +318,9 @@ def test_fill_contract_llm_fallback(tmp_path, monkeypatch):
 
     result = scenarios.fill_contract("src.txt")
     assert result["ok"] is True
-    assert result["fields"]["inn"] == "7701234567"  # дозаполнено моделью
-    assert result["model_fields"] == ["inn"]  # bik пустой — не считается
+    # Структурные поля (ИНН, даты, счета) LLM не дозаполняет — только текст.
+    assert result["fields"]["dolzhnost"] == "Генеральный директор"
+    assert result["model_fields"] == ["dolzhnost"]  # bik не в белом списке
     assert fake.calls == 1
 
 
@@ -345,58 +340,33 @@ def test_fill_contract_llm_fallback_disabled_by_default(tmp_path, monkeypatch):
     assert fake.calls == 0  # модель не вызывалась
 
 
-def test_risk_side_changes_prompt_and_separates_cache(tmp_path, monkeypatch):
+def test_risk_side_and_export(tmp_path, monkeypatch):
     ws = _ws(tmp_path, monkeypatch)
-    (ws / "dog.txt").write_text("Договор про срок оплаты.", encoding="utf-8")
-    messages_seen = []
+    (ws / "dog.txt").write_text("Договор про срок оплаты и неустойку.", encoding="utf-8")
 
-    class SideLLM:
-        def json_chat(self, messages, schema_hint=None):
-            messages_seen.append(messages)
-            return {"summary": "Проверка", "risks": [
-                {"punkt": "1", "risk": "Риск", "level": "средний",
-                 "recommendation": "Уточнить срок"}
-            ]}
-
-    monkeypatch.setattr(scenarios, "LLM", lambda config=None: SideLLM())
     for side in ("customer", "contractor", "neutral"):
         result = scenarios.find_risks("dog.txt", side=side)
         assert result["side"] == side
-        assert not result["cached"]
-        assert scenarios.find_risks("dog.txt", side=side)["cached"]
-    assert len(messages_seen) == 3
-    assert "«Заказчик»" in messages_seen[0][0]["content"]
-    assert "«Исполнитель»" in messages_seen[1][0]["content"]
-    assert "Невыгодность условия сама по себе не означает незаконность" in messages_seen[0][0]["content"]
+        assert result["fallback"] is False
     result = scenarios.export_risks("dog.txt", side="customer")
     from docx import Document
     assert "Сторона: Заказчик" in "\n".join(
         p.text for p in Document(result["out_path"]).paragraphs
     )
-    assert len(messages_seen) == 3
 
 
-def test_side_fallback_discloses_general_analysis(tmp_path, monkeypatch):
+def test_risk_side_returns_deterministic(tmp_path, monkeypatch):
     ws = _ws(tmp_path, monkeypatch)
     (ws / "dog.txt").write_text("Неустойка", encoding="utf-8")
-    class UnavailableLLM:
-        def json_chat(self, messages, schema_hint=None):
-            raise LLMError("Нет модели")
-    monkeypatch.setattr(scenarios, "LLM", lambda config=None: UnavailableLLM())
     result = scenarios.find_risks("dog.txt", side="contractor")
-    assert result["fallback"] and result["side"] == "contractor"
-    assert "без учёта выбранной стороны" in result["summary"]
+    assert result["side"] == "contractor"
+    assert result["fallback"] is False
 
 
-def test_malformed_risks_use_fallback(tmp_path, monkeypatch):
+def test_risks_are_structured(tmp_path, monkeypatch):
     ws = _ws(tmp_path, monkeypatch)
     (ws / 'dog.txt').write_text('Неустойка за просрочку')
-    class BadRiskLLM:
-        def json_chat(self, messages, schema_hint=None):
-            return {'summary': 'Разбор', 'risks': ['это строка, а не риск']}
-    monkeypatch.setattr(scenarios, 'LLM', lambda config=None: BadRiskLLM())
     result = scenarios.find_risks('dog.txt', side='customer')
-    assert result['fallback']
     assert all(isinstance(r, dict) for r in result['risks'])
 
 

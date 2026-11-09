@@ -6,7 +6,7 @@ import os
 import re
 from pathlib import Path
 
-from . import cache, checklists, docs, extract, prompts, rag
+from . import analysis, cache, checklists, docs, extract, ocr, prompts, rag
 from .config import TEMPLATES_DIR, load_config
 from .llm import LLM, LLMError
 
@@ -66,6 +66,33 @@ _RISK_RULES: list[tuple[list[str], str, str, str, str]] = [
 ]
 
 
+# Поля, которые модель может дозаполнять. Структурные/идентификационные поля
+# (даты, ИНН, ОГРН, счета, паспорт, сумма) исключены: их надёжно достаёт только
+# регулярка, а маленькая модель склонна их выдумывать (галлюцинации). Модель
+# дозаполняет только свободный текст, где ошибка не критична для документа.
+_LLM_FILLABLE = {
+    "familiya", "imya", "otchestvo", "fio",
+    "pasport_vydan", "adres_registracii",
+    "organizaciya", "yuridicheskiy_adres", "bank",
+    "dolzhnost", "telefon", "email",
+}
+
+# Нормализация уровня риска: маленькая модель пишет «нижкий», «mid», «high» и т.п.
+_LEVEL_ALIASES = (
+    ("высок", "высокий"), ("high", "высокий"),
+    ("сред", "средний"), ("mid", "средний"),
+    ("низк", "низкий"), ("нижк", "низкий"), ("низ", "низкий"), ("low", "низкий"),
+)
+
+
+def _norm_level(level: str) -> str:
+    s = (level or "").strip().lower()
+    for prefix, canon in _LEVEL_ALIASES:
+        if s.startswith(prefix):
+            return canon
+    return "низкий"
+
+
 def _llm_extract_enabled() -> bool:
     """Дозаполнение реквизитов моделью — опционально (по умолчанию выключено)."""
     return os.environ.get("LEXLOCK_LLM_EXTRACT", "0").strip().lower() in {
@@ -75,7 +102,7 @@ def _llm_extract_enabled() -> bool:
 
 def _llm_fill_missing(cfg, text: str, found: dict, log: list[str]) -> list[str]:
     """Просит модель заполнить ненайденные поля. Ошибки не роняют сценарий."""
-    missing = extract.missing_fields(found)
+    missing = [f for f in extract.missing_fields(found) if f in _LLM_FILLABLE]
     if not missing:
         return []
     try:
@@ -208,11 +235,17 @@ RISK_SIDES = {"neutral": "Общий анализ", "customer": "Заказчи�
 
 
 def find_risks(filename: str, side: str = "neutral") -> dict:
-    """Анализ рисков через LLM; при недоступности модели — эвристика (fallback=True)."""
+    """Детерминированный поиск рисков по явным условиям договора.
+
+    Свободный «юридический анализ» моделью убран: маленькая локальная модель
+    галлюцинирует в рассуждениях о праве. Осталась только проверка по явным
+    маркерам опасных условий (пролонгация, односторонний отказ, неустойка и т.п.),
+    без учёта стороны (эвристика стороне не различает её интересы — честно).
+    """
     if side not in RISK_SIDES:
         raise ValueError("Неизвестная сторона договора")
     cfg = load_config()
-    log = [f"Читаю документ: {filename}", f"Сторона: {RISK_SIDES[side]}"]
+    log = [f"Читаю документ: {filename}"]
     try:
         text = docs.read_document(docs.safe_workspace_path(cfg.workspace, filename))
     except Exception as exc:
@@ -222,54 +255,17 @@ def find_risks(filename: str, side: str = "neutral") -> dict:
             "summary": "",
             "risks": [],
             "log": [f"Ошибка чтения документа: {exc}"],
-            "fallback": True,
+            "fallback": False,
         }
-
-    snippet = rag.select_relevant(text, prompts.RISK_QUERY, cfg.max_ctx_chars)
-    key = cache.make_key(cfg.model, "risks", text, f"side-v2:{side}:{cfg.max_ctx_chars}")
-    cached = cache.get(cfg.workspace, key)
-    if cached is not None:
-        log.append("Риски взяты из кэша")
-        return {**cached, "log": log, "cached": True}
-
-    llm = LLM(cfg)
-    messages = [
-        {"role": "system", "content": prompts.RISK_SYSTEM_PROMPT + (
-            " Общий анализ: учитывай интересы обеих сторон." if side == "neutral" else
-            f" Анализируй с позиции стороны «{RISK_SIDES[side]}». Оценивай последствия и рекомендации для неё; "
-            "не считай выгодное для неё условие риском только из-за невыгодности для контрагента."
-        )},
-        {"role": "user", "content": f"Проанализируй договор:\n\n{snippet}"},
-    ]
-    try:
-        data = llm.json_chat(messages, schema_hint=prompts.RISK_SCHEMA)
-        risks = data.get("risks", []) if isinstance(data, dict) else []
-        summary = data.get("summary", "") if isinstance(data, dict) else ""
-        if (
-            not isinstance(summary, str) or not isinstance(risks, list) or not risks
-            or any(
-                not isinstance(risk, dict)
-                or any(not isinstance(risk.get(field), str) or not risk[field].strip()
-                       for field in ("punkt", "risk", "level", "recommendation"))
-                for risk in risks
-            )
-        ):
-            raise LLMError("Модель вернула некорректный список рисков")
-        payload = {"ok": True, "summary": summary, "risks": risks, "fallback": False, "side": side}
-        cache.put(cfg.workspace, key, payload)
-        log.append("Риски получены от модели")
-        return {**payload, "log": log, "cached": False}
-    except LLMError as exc:
-        log.append(f"Модель недоступна, использую эвристику: {exc}")
-        return {
-            "ok": True,
-            "summary": "Эвристический анализ (модель недоступна). Общая проверка без учёта выбранной стороны.",
-            "side": side,
-            "risks": _heuristic_risks(text),
-            "log": log,
-            "fallback": True,
-            "cached": False,
-        }
+    return {
+        "ok": True,
+        "summary": "Проверка по явным условиям договора (детерминированно, без модели).",
+        "side": side,
+        "risks": _heuristic_risks(text),
+        "log": log,
+        "fallback": False,
+        "cached": False,
+    }
 
 
 def ask(filename: str, question: str) -> dict:
@@ -329,79 +325,100 @@ def search_documents(query: str) -> dict:
 
 
 def summarize(filename: str) -> dict:
-    """Краткое резюме документа через модель; при сбое — честная ошибка."""
+    """«Паспорт» документа: тип, стороны, дата, номер, сумма, предмет (без LLM).
+
+    Свободное резюме моделью убрано — маленькая модель галлюцинирует. Вместо него
+    детерминированное извлечение структурированных полей.
+    """
     cfg = load_config()
     try:
         text = docs.read_document(docs.safe_workspace_path(cfg.workspace, filename))
     except Exception as exc:
         return {"ok": False, "error": f"Не удалось прочитать документ: {exc}"}
-    snippet = rag.select_relevant(
-        text, "стороны предмет срок сумма ответственность риски", cfg.max_ctx_chars
-    )
-    llm = LLM(cfg)
-    try:
-        summary = llm.chat(
-            [
-                {"role": "system", "content": prompts.SUMMARIZE_SYSTEM_PROMPT},
-                {"role": "user", "content": f"Документ:\n\n{snippet}"},
-            ]
-        ).content
-    except LLMError as exc:
-        return {"ok": False, "error": str(exc)}
-    return {"ok": True, "filename": filename, "summary": summary}
+    return {"ok": True, "filename": filename, **analysis.document_passport(text)}
 
 
 def compare_documents(a: str, b: str) -> dict:
-    """Сравнение двух документов через модель; при сбое — честная ошибка."""
+    """Сравнение двух документов по извлечённым полям (без LLM)."""
     cfg = load_config()
     try:
         text_a = docs.read_document(docs.safe_workspace_path(cfg.workspace, a))
         text_b = docs.read_document(docs.safe_workspace_path(cfg.workspace, b))
     except Exception as exc:
         return {"ok": False, "error": f"Не удалось прочитать документы: {exc}"}
-    query = "условия срок сумма ответственность сторона предмет"
-    snippet_a = rag.select_relevant(text_a, query, cfg.max_ctx_chars // 2)
-    snippet_b = rag.select_relevant(text_b, query, cfg.max_ctx_chars // 2)
-    llm = LLM(cfg)
+    pa = analysis.document_passport(text_a)
+    pb = analysis.document_passport(text_b)
+    differences = []
+    for field in ("type", "date", "number", "sum"):
+        va, vb = pa.get(field), pb.get(field)
+        if va != vb:
+            differences.append(
+                f"{field}: «{va or '—'}» против «{vb or '—'}»"
+            )
+    return {
+        "ok": True,
+        "a": a,
+        "b": b,
+        "differences": differences,
+        "a_passport": pa,
+        "b_passport": pb,
+    }
+
+
+def recognize_document(filename: str) -> dict:
+    """OCR (если скан/изображение) + очистка текста + паспорт документа.
+
+    Черновой разбор русских документов: распознавание через Tesseract, очистка
+    артефактов моделью (опционально) и детерминированное извлечение полей.
+    """
+    cfg = load_config()
+    path = docs.safe_workspace_path(cfg.workspace, filename)
     try:
-        comparison = llm.chat(
-            [
-                {"role": "system", "content": prompts.COMPARE_SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": (
-                        f"Документ A ({a}):\n\n{snippet_a}\n\n"
-                        f"Документ B ({b}):\n\n{snippet_b}"
-                    ),
-                },
-            ]
-        ).content
-    except LLMError as exc:
-        return {"ok": False, "error": str(exc)}
-    return {"ok": True, "a": a, "b": b, "comparison": comparison}
+        text = docs.read_document(path)
+    except Exception as exc:
+        return {"ok": False, "error": f"Не удалось прочитать документ: {exc}"}
+
+    ext = path.suffix.lower()
+    was_ocr = ext in ocr.IMAGE_EXT or (ext == ".pdf" and ocr.needs_ocr(text))
+
+    llm = None
+    try:
+        llm = LLM(cfg)
+    except Exception:
+        llm = None
+    cleaned, model_used = analysis.clean_ocr_text(text, llm)
+    passport = analysis.document_passport(cleaned)
+    return {
+        "ok": True,
+        "filename": filename,
+        "ocr": was_ocr,
+        "cleaned_by_model": model_used,
+        "text": cleaned,
+        **passport,
+    }
 
 
 def export_risks(filename: str, side: str = "neutral") -> dict:
     """Прогоняет анализ рисков и сохраняет отчёт в .docx рядом в workspace."""
-    analysis = find_risks(filename, side=side)
-    if not analysis.get("ok"):
-        return analysis
+    result = find_risks(filename, side=side)
+    if not result.get("ok"):
+        return result
     cfg = load_config()
     out_name = Path(filename).stem + "_risks.docx"
     out_path = docs.safe_workspace_path(cfg.workspace, out_name)
     docs.write_risk_report(
         out_path,
         filename,
-        f"Сторона: {RISK_SIDES[side]}. " + str(analysis.get("summary", "")),
-        list(analysis.get("risks", [])),
+        f"Сторона: {RISK_SIDES[side]}. " + str(result.get("summary", "")),
+        list(result.get("risks", [])),
     )
     return {
         "ok": True,
         "out_path": str(out_path),
         "download_name": out_name,
         "side": side,
-        "risks": analysis.get("risks", []),
-        "fallback": analysis.get("fallback", False),
+        "risks": result.get("risks", []),
+        "fallback": result.get("fallback", False),
     }
 
 

@@ -78,6 +78,10 @@ def _check_contract_tool(filename: str, contract_type: str | None = None) -> dic
     return scenarios.check_contract(filename, contract_type)
 
 
+def _recognize_document_tool(filename: str) -> dict:
+    return scenarios.recognize_document(filename)
+
+
 TOOLS: list[Tool] = [
     Tool(
         name="list_files",
@@ -140,7 +144,11 @@ TOOLS: list[Tool] = [
     ),
     Tool(
         name="find_risks",
-        description="Проанализировать договор и вернуть список юридических рисков.",
+        description=(
+            "Проверить договор на явные опасные условия по ключевым словам "
+            "(автопролонгация, односторонний отказ, неустойка, штраф, подсудность). "
+            "Детерминированно, без модели."
+        ),
         parameters={
             "type": "object",
             "properties": {
@@ -179,6 +187,21 @@ TOOLS: list[Tool] = [
         fn=_check_contract_tool,
     ),
     Tool(
+        name="recognize_document",
+        description=(
+            "Распознать скан/изображение (OCR) и вернуть очищенный текст вместе с "
+            "паспортом документа (тип, стороны, дата, номер, сумма, предмет)."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "filename": {"type": "string", "description": "Имя файла документа"},
+            },
+            "required": ["filename"],
+        },
+        fn=_recognize_document_tool,
+    ),
+    Tool(
         name="search_documents",
         description=(
             "Искать фрагменты по всем документам рабочей папки по ключевым словам. "
@@ -195,7 +218,10 @@ TOOLS: list[Tool] = [
     ),
     Tool(
         name="summarize",
-        description="Сделать краткое резюме документа (суть, стороны, условия, суммы, риски).",
+        description=(
+            "Вернуть паспорт документа: тип, стороны, дату, номер, сумму, предмет. "
+            "Детерминированно, без модели."
+        ),
         parameters={
             "type": "object",
             "properties": {
@@ -207,7 +233,7 @@ TOOLS: list[Tool] = [
     ),
     Tool(
         name="compare_documents",
-        description="Сравнить два документа и перечислить различия по пунктам.",
+        description="Сравнить два документа по извлечённым полям (тип, дата, номер, сумма).",
         parameters={
             "type": "object",
             "properties": {
