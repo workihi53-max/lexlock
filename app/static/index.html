@@ -368,7 +368,10 @@
       <p class="model-line" id="model-line">Модель: …</p>
     </div>
   </div>
-  <div class="badge offline" id="offline-badge"><span class="lock" aria-hidden="true">🔒</span><span id="badge-text">Офлайн-режим</span></div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <div class="badge offline" id="offline-badge"><span class="lock" aria-hidden="true">🔒</span><span id="badge-text">Офлайн-режим</span></div>
+    <button id="btn-shutdown" class="btn secondary" style="padding:7px 14px;font-size:14px" title="Остановить приложение и освободить память">■ Остановить</button>
+  </div>
 </header>
 
 <main>
@@ -1048,6 +1051,20 @@ $("chat-form").addEventListener("submit", async (e) => {
     setStatus("");
     input.focus();
   }
+});
+
+/* --- остановка приложения --- */
+$("btn-shutdown").addEventListener("click", async () => {
+  if (!confirm("Остановить ЛексЛок? Приложение закроется, вкладку можно будет закрыть.")) return;
+  const btn = $("btn-shutdown");
+  btn.disabled = true;
+  btn.textContent = "Останавливаю…";
+  try { await fetch("/api/shutdown", { method: "POST" }); } catch (_) {}
+  document.body.innerHTML =
+    '<div style="display:flex;height:100vh;align-items:center;justify-content:center;' +
+    'font-family:sans-serif;color:#1F2A37;text-align:center;padding:20px">' +
+    '<div><h1 style="font-size:22px">ЛексЛок остановлен</h1>' +
+    '<p style="color:#5A6572">Приложение закрыто, память освобождена.<br>Эту вкладку можно закрыть.</p></div></div>';
 });
 
 /* --- старт --- */

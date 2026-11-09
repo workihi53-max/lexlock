@@ -8,8 +8,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import queue
+import signal
 import threading
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -142,6 +145,19 @@ def create_app(config: Any | None = None) -> FastAPI:
             "ollama": bool(h.get("ok", False)),
             "workspace": str(workspace),
         }
+
+    @app.post("/api/shutdown")
+    def shutdown():
+        """Корректно останавливает сервер (кнопка «Остановить» в интерфейсе)."""
+        def _stop() -> None:
+            time.sleep(0.3)  # даём ответу дойти до браузера
+            try:
+                os.kill(os.getpid(), signal.SIGTERM)
+            except Exception:
+                os._exit(0)
+
+        threading.Thread(target=_stop, daemon=True).start()
+        return {"ok": True}
 
     # --- файлы -----------------------------------------------------------------
 

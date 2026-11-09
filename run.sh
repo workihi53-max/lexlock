@@ -71,22 +71,11 @@ PORT="${LEXLOCK_PORT:-8765}"
 URL="http://127.0.0.1:${PORT}"
 echo "Открой $URL"
 
-# Открываем браузер после старта сервера (не критично, если не получится).
-if [ "$OPEN" -eq 1 ]; then
-    (
-        for _ in $(seq 1 30); do
-            if curl -s --max-time 1 "$URL/api/health" >/dev/null 2>&1; then
-                break
-            fi
-            sleep 1
-        done
-        if command -v open >/dev/null 2>&1; then
-            open "$URL" >/dev/null 2>&1 || true
-        elif command -v xdg-open >/dev/null 2>&1; then
-            xdg-open "$URL" >/dev/null 2>&1 || true
-        fi
-    ) &
-fi
-
 cd "$ROOT"
-exec "$VENV/bin/python" -m app.server
+# Launcher открывает браузер и держит иконку в трее (если доступна).
+# Без трея — просто работает как раньше.
+if [ "$OPEN" -eq 1 ]; then
+    exec "$VENV/bin/python" "$ROOT/scripts/launcher.py"
+else
+    exec "$VENV/bin/python" "$ROOT/scripts/launcher.py" --no-browser
+fi

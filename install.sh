@@ -152,9 +152,9 @@ fi
 
 echo "==> Установка зависимостей"
 if [ "$NO_OCR" -eq 1 ]; then
-    uv pip install --python "$VENV/bin/python" -e "$ROOT"
+    uv pip install --python "$VENV/bin/python" -e "$ROOT[tray]"
 else
-    uv pip install --python "$VENV/bin/python" -e "$ROOT[ocr]"
+    uv pip install --python "$VENV/bin/python" -e "$ROOT[ocr,tray]"
 fi
 
 # --- OCR: Tesseract + русский язык (по умолчанию) ---------------------------

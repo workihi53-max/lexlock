@@ -108,7 +108,7 @@ if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) { throw "Ollama н�
 # --- Шаг 3/6: Python-окружение только для ЛексЛока (.venv в папке программы) ---
 Write-Host "[3/6] Создаю Python-окружение в папке программы (.venv)..."
 if (-not (Test-Path ".venv\Scripts\python.exe")) { Invoke-Checked uv @("venv", "--python", "3.12", ".venv") }
-Invoke-Checked uv @("pip", "install", "--python", ".venv\Scripts\python.exe", "-e", ".[ocr]")
+Invoke-Checked uv @("pip", "install", "--python", ".venv\Scripts\python.exe", "-e", ".[ocr,tray]")
 
 # --- Шаг 4/6: Tesseract для чтения сканов (необязательно) ---
 if (-not (Get-Command tesseract -ErrorAction SilentlyContinue)) {

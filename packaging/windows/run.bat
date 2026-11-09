@@ -24,7 +24,7 @@ if errorlevel 1 (
 )
 
 echo Запускаю ЛексЛок (сервер стартует в фоне)...
-start "" /b ".venv\Scripts\python.exe" -m app.server
+start "" /b ".venv\Scripts\python.exe" scripts\launcher.py --no-browser
 
 rem Ждём, пока сервер ответит, и только потом открываем браузер.
 set /a tries=0
