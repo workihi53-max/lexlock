@@ -258,6 +258,33 @@ DESK
     echo "    Ярлык добавлен в меню приложений."
 fi
 
+# Ярлык в Launchpad на macOS — собираем простое .app, чтобы запускать из «Программ».
+if [ "$OS" = "Darwin" ]; then
+    APPDIR="$HOME/Applications/ЛексЛок.app"
+    mkdir -p "$APPDIR/Contents/MacOS" "$APPDIR/Contents/Resources"
+    cat > "$APPDIR/Contents/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key><string>ЛексЛок</string>
+    <key>CFBundleDisplayName</key><string>ЛексЛок</string>
+    <key>CFBundleIdentifier</key><string>ru.legalvault.lexlock</string>
+    <key>CFBundleExecutable</key><string>lexlock</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>LSMinimumSystemVersion</key><string>11.0</string>
+    <key>NSHighResolutionCapable</key><true/>
+</dict>
+</plist>
+PLIST
+    cat > "$APPDIR/Contents/MacOS/lexlock" <<LAUNCH
+#!/bin/bash
+exec "$ROOT/run.sh"
+LAUNCH
+    chmod +x "$APPDIR/Contents/MacOS/lexlock"
+    echo "    Приложение добавлено в «Программы» (Launchpad)."
+fi
+
 echo
 echo "Готово. Запусти ./run.sh"
 echo "Если Ollama ставилась впервые — на macOS запустите приложение Ollama один раз."

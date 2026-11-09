@@ -143,6 +143,9 @@ class LLM:
             "stream": False,
             # Держим модель в памяти между запросами — иначе каждый раз ждём загрузку.
             "keep_alive": "30m",
+            # qwen3 и подобные «размышляющие» модели: без этого ответ медленный и с <think>.
+            # qwen2.5 этот параметр игнорирует.
+            "think": False,
         }
         if tools:
             payload["tools"] = tools
@@ -182,7 +185,7 @@ class LLM:
 
     def stream(self, messages: list[dict]) -> Iterator[str]:
         payload = {"model": self.config.model, "messages": messages, "stream": True,
-                   "keep_alive": "30m"}
+                   "keep_alive": "30m", "think": False}
         try:
             with self._client() as client:
                 with client.stream("POST", "/api/chat", json=payload) as resp:
