@@ -101,7 +101,7 @@ TMP_CODE=""
 if [ ! -x "$DIR/.venv/bin/python" ] && [ "${LEXLOCK_NO_REFRESH:-0}" != "1" ] && [ ! -d "$DIR/.git" ]; then
     REF="${LEXLOCK_CODE_REF:-main}"
     if TMP_CODE="$(mktemp -d 2>>"$LOG")" \
-        && curl -fL --retry 2 "https://github.com/workihi53-max/lexlock/archive/refs/heads/$REF.tar.gz" \
+        && curl -fL --retry 15 --retry-all-errors --retry-delay 3 --connect-timeout 20 -C - "https://github.com/workihi53-max/lexlock/archive/refs/heads/$REF.tar.gz" \
             -o "$TMP_CODE/src.tar.gz" 2>>"$LOG" \
         && tar -xzf "$TMP_CODE/src.tar.gz" -C "$TMP_CODE" 2>>"$LOG" \
         && [ -d "$TMP_CODE/lexlock-$REF" ]; then

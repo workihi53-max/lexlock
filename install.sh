@@ -116,7 +116,7 @@ else
             # Ставим официальное приложение Ollama.app без Homebrew.
             TMPZIP="$(mktemp -d)/Ollama-darwin.zip"
             echo "    Скачиваю Ollama.app (~200 МБ)..."
-            if curl -fL --retry 3 -o "$TMPZIP" https://ollama.com/download/Ollama-darwin.zip; then
+            if curl -fL --retry 15 --retry-all-errors --retry-delay 3 --connect-timeout 20 -C - -o "$TMPZIP" https://ollama.com/download/Ollama-darwin.zip; then
                 for APP_DIR in /Applications "$HOME/Applications"; do
                     if unzip -q -o "$TMPZIP" -d "$APP_DIR" 2>/dev/null; then
                         echo "    Ollama.app установлен в $APP_DIR"
@@ -214,10 +214,18 @@ else
             echo "    Модель $MODEL уже установлена — скачивание не нужно."
         else
             echo "==> Скачивание модели $MODEL (может занять время)"
-            "$OLLAMA_BIN" pull "$MODEL" || {
+            # На слабом интернете загрузка рвётся; ollama pull докачивает с места обрыва,
+            # поэтому просто повторяем, пока не получится.
+            PULLED=0
+            for N in $(seq 1 30); do
+                if "$OLLAMA_BIN" pull "$MODEL"; then PULLED=1; break; fi
+                echo "    Связь оборвалась, докачиваю (попытка $N из 30)..."
+                sleep 5
+            done
+            if [ "$PULLED" -ne 1 ]; then
                 echo "    Предупреждение: не удалось скачать модель $MODEL." >&2
                 echo "    Повторите позже: $OLLAMA_BIN pull $MODEL" >&2
-            }
+            fi
         fi
     else
         echo "    Предупреждение: Ollama не запустилась на 127.0.0.1:11434." >&2

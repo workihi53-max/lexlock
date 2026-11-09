@@ -108,7 +108,7 @@ refresh_code() {
     [ -d "$TARGET/.git" ] && return 0
     ref="${LEXLOCK_CODE_REF:-main}"
     tmp="$(mktemp -d)" || return 0
-    if curl -fL --retry 2 "https://github.com/workihi53-max/lexlock/archive/refs/heads/$ref.tar.gz" \
+    if curl -fL --retry 15 --retry-all-errors --retry-delay 3 --connect-timeout 20 -C - "https://github.com/workihi53-max/lexlock/archive/refs/heads/$ref.tar.gz" \
             -o "$tmp/src.tar.gz" 2>/dev/null \
         && tar -xzf "$tmp/src.tar.gz" -C "$tmp" 2>/dev/null \
         && [ -d "$tmp/lexlock-$ref" ]; then

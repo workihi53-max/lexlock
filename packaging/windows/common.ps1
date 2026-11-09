@@ -19,3 +19,19 @@ function Wait-Ollama {
     }
     throw "Ollama не запустилась. Повторите установку компонентов; подробности — в install.log."
 }
+
+# Загрузка с докачкой и повторами: на слабом интернете соединение часто рвётся.
+function Get-FileResilient([string]$Url, [string]$OutFile) {
+    $curl = Join-Path $env:SystemRoot "System32\curl.exe"
+    for ($i = 1; $i -le 15; $i++) {
+        if (Test-Path $curl) {
+            & $curl -L -f -C - --connect-timeout 20 -o $OutFile $Url
+            if ($LASTEXITCODE -eq 0) { return }
+        } else {
+            try { Invoke-WebRequest -UseBasicParsing $Url -OutFile $OutFile; return } catch { }
+        }
+        Write-Host "    Связь оборвалась, повторяю (попытка $i из 15)..."
+        Start-Sleep -Seconds 5
+    }
+    throw "Не удалось скачать $Url. Проверьте интернет и повторите."
+}

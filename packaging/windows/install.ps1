@@ -57,7 +57,7 @@ if ($TargetRoot) {
     try {
         $zip = Join-Path $env:TEMP "lexlock-code.zip"
         if (Test-Path $zip) { Remove-Item $zip -Force }
-        Invoke-WebRequest -UseBasicParsing "https://github.com/workihi53-max/lexlock/archive/refs/heads/$codeRef.zip" -OutFile $zip
+        Get-FileResilient "https://github.com/workihi53-max/lexlock/archive/refs/heads/$codeRef.zip" $zip
         $tmp = Join-Path $env:TEMP "lexlock-code"
         if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
         Expand-Archive -Path $zip -DestinationPath $tmp -Force
@@ -90,11 +90,10 @@ $env:Path = "$env:USERPROFILE\.local\bin;$env:USERPROFILE\.cargo\bin;$env:Path"
 # --- Шаг 2/6: Ollama (запуск модели локально, ~500 МБ) ---
 if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
     Write-Host "[2/6] Ставлю Ollama (программа для локального запуска модели)..."
-    if (Get-Command winget -ErrorAction SilentlyContinue) {
-        Invoke-Checked winget @("install", "--id", "Ollama.Ollama", "-e", "--silent", "--disable-interactivity", "--accept-source-agreements", "--accept-package-agreements")
-    } else {
+    # Прямая загрузка с докачкой надёжнее winget на слабом интернете.
+    if ($true) {
         $exe = Join-Path $env:TEMP "OllamaSetup.exe"
-        Invoke-WebRequest -UseBasicParsing "https://ollama.com/download/OllamaSetup.exe" -OutFile $exe
+        Get-FileResilient "https://ollama.com/download/OllamaSetup.exe" $exe
         $signature = Get-AuthenticodeSignature $exe
         if ($signature.Status -ne "Valid") { throw "Не удалось подтвердить подпись установщика Ollama" }
         $setup = Start-Process $exe -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait -PassThru
@@ -143,7 +142,16 @@ if ($alreadyHave) {
     Write-Host "    Модель $model уже установлена — скачивание не нужно."
 } else {
     # Ошибка загрузки обязательной модели не должна превращаться в «Готово».
-    Invoke-Checked ollama @("pull", $model)
+    # ollama pull докачивает с места обрыва, поэтому на плохой связи повторяем.
+    $pulled = $false
+    for ($i = 1; $i -le 30 -and -not $pulled; $i++) {
+        & ollama pull $model
+        if ($LASTEXITCODE -eq 0) { $pulled = $true } else {
+            Write-Host "    Связь оборвалась, докачиваю (попытка $i из 30)..."
+            Start-Sleep -Seconds 5
+        }
+    }
+    if (-not $pulled) { throw "Не удалось скачать модель $model. Проверьте интернет и повторите установку." }
 }
 
 # --- Шаг 6/6: шаблон договора и примеры ---

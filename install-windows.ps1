@@ -21,7 +21,19 @@ New-Item -ItemType Directory -Force -Path $Dest | Out-Null
 Write-Host "==> Скачиваю свежий код ($Branch)"
 $zip = Join-Path $env:TEMP "lexlock-$Branch.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }
-Invoke-WebRequest -UseBasicParsing $Url -OutFile $zip
+# Загрузка с докачкой и повторами (слабый интернет).
+$curl = Join-Path $env:SystemRoot "System32\curl.exe"
+$ok = $false
+for ($i = 1; $i -le 15 -and -not $ok; $i++) {
+    if (Test-Path $curl) {
+        & $curl -L -f -C - --connect-timeout 20 -o $zip $Url
+        $ok = ($LASTEXITCODE -eq 0)
+    } else {
+        try { Invoke-WebRequest -UseBasicParsing $Url -OutFile $zip; $ok = $true } catch { }
+    }
+    if (-not $ok) { Write-Host "    Связь оборвалась, повторяю (попытка $i из 15)..."; Start-Sleep -Seconds 5 }
+}
+if (-not $ok) { throw "Не удалось скачать код. Проверьте интернет и повторите." }
 $tmp = Join-Path $env:TEMP "lexlock-src"
 if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
 Expand-Archive -Path $zip -DestinationPath $tmp -Force

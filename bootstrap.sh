@@ -55,7 +55,7 @@ download_and_extract() {
     local url="https://github.com/$repo/archive/refs/heads/$branch.tar.gz"
     echo "==> Скачиваю свежий код ($branch, $repo)"
     mkdir -p "$DEST"
-    if curl -fL --retry 3 "$url" -o "$TMP/src.tar.gz" 2>/dev/null; then
+    if curl -fL --retry 15 --retry-all-errors --retry-delay 3 --connect-timeout 20 -C - "$url" -o "$TMP/src.tar.gz" 2>/dev/null; then
         tar -xzf "$TMP/src.tar.gz" -C "$TMP"
         local src="$TMP/$(basename "$repo")-$branch"
         if [ -d "$src" ]; then
