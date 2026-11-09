@@ -245,6 +245,21 @@ def create_app(config: Any | None = None) -> FastAPI:
         except Exception as exc:
             raise _scenario_error(str(exc)) from exc
 
+    @app.post("/api/scenario/structure")
+    def scenario_structure(req: RecognizeRequest):
+        _checked_path(workspace, req.filename)
+        try:
+            return lexlock_scenarios.document_structure(req.filename)
+        except Exception as exc:
+            raise _scenario_error(str(exc)) from exc
+
+    @app.post("/api/scenario/consistency")
+    def scenario_consistency():
+        try:
+            return lexlock_scenarios.check_consistency()
+        except Exception as exc:
+            raise _scenario_error(str(exc)) from exc
+
     # --- чат (SSE) ---------------------------------------------------------------
 
     async def _sse_events(message: str, history: list[dict] | None) -> AsyncIterator[str]:

@@ -77,3 +77,46 @@ def test_recognize_document_deterministic(tmp_path, monkeypatch):
     assert result["ocr"] is False
     assert result["type"] == "договор"
     assert any("Тест" in p for p in result["parties"])
+
+
+def test_document_structure_extracts_headings():
+    text = (
+        "1. Предмет договора\n"
+        "1.1. Исполнитель обязуется оказать услуги по разработке программного обеспечения\n"
+        "2. Сроки\n"
+        "3. Порядок оплаты\n"
+    )
+    sections = analysis.document_structure(text)
+    assert [s["number"] for s in sections] == ["1", "2", "3"]
+    assert sections[0]["title"] == "Предмет договора"
+    # длинный пункт 1.1 не считается заголовком
+    assert all(s["number"] != "1.1" for s in sections)
+
+
+def test_document_structure_scenario(tmp_path, monkeypatch):
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    monkeypatch.setenv("LEXLOCK_WORKSPACE", str(ws))
+    (ws / "doc.txt").write_text("1. Предмет\n2. Сроки\n", encoding="utf-8")
+    result = scenarios.document_structure("doc.txt")
+    assert result["ok"] is True
+    assert len(result["sections"]) == 2
+
+
+def test_check_consistency_finds_discrepancy(tmp_path, monkeypatch):
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    monkeypatch.setenv("LEXLOCK_WORKSPACE", str(ws))
+    (ws / "dogovor.txt").write_text("ИНН: 1111111111\nОГРН: 1111111111111", encoding="utf-8")
+    (ws / "rekvizity.txt").write_text("ИНН: 2222222222\nОГРН: 1111111111111", encoding="utf-8")
+    result = scenarios.check_consistency()
+    assert result["ok"] is True
+    fields = {d["field"] for d in result["discrepancies"]}
+    assert "inn" in fields
+    assert "ogrn" not in fields  # совпадает
+
+
+def test_normalize_date():
+    assert analysis.normalize_date("12.05.1985") == "12.05.1985"
+    assert analysis.normalize_date("12/05/85") == "12.05.1985"
+    assert analysis.normalize_date("не дата") == "не дата"

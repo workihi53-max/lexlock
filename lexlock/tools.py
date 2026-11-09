@@ -82,6 +82,14 @@ def _recognize_document_tool(filename: str) -> dict:
     return scenarios.recognize_document(filename)
 
 
+def _document_structure_tool(filename: str) -> dict:
+    return scenarios.document_structure(filename)
+
+
+def _check_consistency_tool() -> dict:
+    return scenarios.check_consistency()
+
+
 TOOLS: list[Tool] = [
     Tool(
         name="list_files",
@@ -200,6 +208,30 @@ TOOLS: list[Tool] = [
             "required": ["filename"],
         },
         fn=_recognize_document_tool,
+    ),
+    Tool(
+        name="document_structure",
+        description=(
+            "Вернуть оглавление документа: нумерованные разделы и пункты "
+            "(например, «1. Предмет», «2. Сроки»). Детерминированно."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "filename": {"type": "string", "description": "Имя файла документа"},
+            },
+            "required": ["filename"],
+        },
+        fn=_document_structure_tool,
+    ),
+    Tool(
+        name="check_consistency",
+        description=(
+            "Сверить реквизиты (ИНН, ОГРН, КПП, БИК, счета) между всеми документами "
+            "рабочей папки и показать расхождения. Детерминированно."
+        ),
+        parameters={"type": "object", "properties": {}, "required": []},
+        fn=_check_consistency_tool,
     ),
     Tool(
         name="search_documents",

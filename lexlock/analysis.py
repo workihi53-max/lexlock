@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime
 
 from . import extract
 from .llm import LLM, LLMError
@@ -156,3 +157,50 @@ def clean_ocr_text(text: str, llm: LLM | None = None) -> tuple[str, bool]:
     except LLMError:
         pass
     return cleaned, False
+
+
+# --- структура документа --------------------------------------------------------
+
+_HEADING_RE = re.compile(
+    r"^(?:глава\s*(\d+)|раздел\s*(\d+)|(\d{1,2}(?:\.\d{1,2})*))\s*[\.\)]?\s+(.+)$",
+    re.IGNORECASE,
+)
+
+
+def document_structure(text: str) -> list[dict]:
+    """Извлекает заголовки разделов/пунктов документа (оглавление).
+
+    Детерминированно: только строки с нумерацией («1.», «1.1», «Глава 2») и
+    коротким текстом (до 70 символов) считаются заголовками. Длинные нумерованные
+    абзацы (обычные пункты) отсекаются.
+    """
+    items: list[dict] = []
+    for line in (text or "").split("\n"):
+        s = line.strip()
+        m = _HEADING_RE.match(s)
+        if not m:
+            continue
+        num = m.group(1) or m.group(2) or m.group(3)
+        title = m.group(4).strip()
+        if num and len(title) <= 70:
+            items.append({"number": num, "title": title})
+    return items
+
+
+# --- нормализация значений ------------------------------------------------------
+
+_DATE_RE = re.compile(r"\b(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})\b")
+
+
+def normalize_date(value: str) -> str:
+    """Приводит дату к формату ДД.ММ.ГГГГ; если не дата — возвращает как есть."""
+    s = (value or "").strip()
+    m = _DATE_RE.search(s)
+    if not m:
+        return s
+    d, mo, y = m.group(1), m.group(2), m.group(3)
+    if len(y) == 2:
+        yy = int(y)
+        pivot = datetime.now().year % 100  # 00..pivot -> 20xx, иначе 19xx
+        y = f"20{yy:02d}" if yy <= pivot else f"19{yy:02d}"
+    return f"{int(d):02d}.{int(mo):02d}.{y}"

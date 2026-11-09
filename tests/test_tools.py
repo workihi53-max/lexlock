@@ -30,7 +30,7 @@ def _ws(tmp_path, monkeypatch):
 
 def test_tool_schemas_shape():
     schemas = tools.tool_schemas()
-    assert len(schemas) == 11
+    assert len(schemas) == 13
     names = {s["function"]["name"] for s in schemas}
     assert names == {
         "list_files",
@@ -44,6 +44,8 @@ def test_tool_schemas_shape():
         "compare_documents",
         "write_report",
         "recognize_document",
+        "document_structure",
+        "check_consistency",
     }
     for s in schemas:
         assert s["type"] == "function"

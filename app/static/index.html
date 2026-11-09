@@ -22,21 +22,31 @@
     --amber-bg: #F4EAD6;
     --green: #2E7D4F;
     --green-bg: #E2EEE4;
-    --radius: 10px;
+    --radius: 0px;
     --focus: 0 0 0 3px rgba(180, 68, 31, 0.35);
     --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans",
             Ubuntu, Cantarell, "Helvetica Neue", Arial, sans-serif;
+    --font-pixel: "Courier New", "Liberation Mono", ui-monospace, SFMono-Regular,
+                  Menlo, Consolas, monospace;
+    --pixel: 2px;
   }
   * { box-sizing: border-box; }
   html { color-scheme: light; }
   body {
     margin: 0;
     background: var(--bg);
+    background-image: radial-gradient(rgba(31, 42, 55, 0.05) 1px, transparent 1px);
+    background-size: 8px 8px;
     color: var(--ink);
     font-family: var(--font);
     font-size: 16px;
     line-height: 1.55;
   }
+  h1, h2, .brand-mark, .level-badge, .mode-badge, .field-chip b {
+    font-family: var(--font-pixel);
+  }
+  h1 { letter-spacing: 0.02em; }
+  h2 { font-size: 15px; letter-spacing: 0.03em; }
 
   /* --- шапка --- */
   header {
@@ -53,14 +63,15 @@
   .brand-mark {
     flex: none;
     width: 46px; height: 46px;
-    border-radius: 10px;
+    border-radius: 0;
     background: var(--accent);
     color: #FFF7EC;
     font-weight: 700;
     font-size: 24px;
     display: grid;
     place-items: center;
-    box-shadow: 0 2px 6px rgba(180, 68, 31, 0.35);
+    box-shadow: 3px 3px 0 var(--ink);
+    image-rendering: pixelated;
   }
   header h1 { margin: 0; font-size: 20px; letter-spacing: -0.01em; }
   .model-line { margin: 2px 0 0; font-size: 13.5px; color: var(--ink-muted); }
@@ -69,7 +80,7 @@
     align-items: center;
     gap: 8px;
     padding: 7px 14px;
-    border-radius: 999px;
+    border-radius: 0px;
     border: 1px solid var(--border);
     background: #fff;
     font-size: 14px;
@@ -95,10 +106,11 @@
   /* --- карточки --- */
   .card {
     background: var(--card);
-    border: 1px solid var(--border);
+    border: 2px solid var(--border);
     border-radius: var(--radius);
     padding: 20px;
     margin-bottom: 20px;
+    box-shadow: var(--pixel) var(--pixel) 0 rgba(31, 42, 55, 0.18);
   }
   .card h2 {
     margin: 0 0 4px;
@@ -135,7 +147,7 @@
     padding: 10px 12px;
     border: 1px solid transparent;
     border-left: 4px solid transparent;
-    border-radius: 8px;
+    border-radius: 0px;
     background: #F8F5EE;
     margin-bottom: 6px;
     cursor: pointer;
@@ -156,17 +168,18 @@
     font-family: inherit;
     font-size: 15px;
     font-weight: 600;
-    border-radius: 8px;
-    border: 1px solid var(--accent);
+    border-radius: 0;
+    border: 2px solid var(--accent);
     background: var(--accent);
     color: #FFF7EC;
     padding: 9px 18px;
     cursor: pointer;
-    transition: background .12s, transform .06s;
+    box-shadow: var(--pixel) var(--pixel) 0 var(--ink);
+    transition: background .12s, box-shadow .06s, transform .06s;
   }
   button:hover { background: var(--accent-dark); }
-  button:active { transform: translateY(1px); }
-  button:disabled { background: #C9C2B2; border-color: #C9C2B2; cursor: not-allowed; }
+  button:active { transform: translate(var(--pixel), var(--pixel)); box-shadow: 0 0 0 var(--ink); }
+  button:disabled { background: #C9C2B2; border-color: #C9C2B2; box-shadow: none; cursor: not-allowed; }
   .btn.secondary {
     background: transparent; color: var(--accent); border-color: var(--accent);
   }
@@ -178,7 +191,7 @@
     color: var(--ink);
     background: #FBF9F4;
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 0px;
     padding: 10px 12px;
     resize: vertical;
     min-height: 72px;
@@ -199,7 +212,7 @@
     background: var(--red-bg);
     border: 1px solid #E4BBB5;
     color: var(--red);
-    border-radius: 8px;
+    border-radius: 0px;
     padding: 10px 12px;
     margin: 10px 0;
     font-size: 14px;
@@ -208,7 +221,7 @@
     background: var(--amber-bg);
     border: 1px solid #E0CFA4;
     color: var(--amber);
-    border-radius: 8px;
+    border-radius: 0px;
     padding: 10px 12px;
     margin: 10px 0;
     font-size: 14px;
@@ -217,7 +230,7 @@
     background: var(--green-bg);
     border: 1px solid #BCD3C1;
     color: var(--green);
-    border-radius: 8px;
+    border-radius: 0px;
     padding: 10px 12px;
     margin: 10px 0;
     font-size: 14px;
@@ -226,7 +239,7 @@
   .field-chip {
     background: #FBF9F4;
     border: 1px solid var(--border);
-    border-radius: 999px;
+    border-radius: 0px;
     padding: 4px 12px;
     font-size: 13px;
   }
@@ -243,7 +256,7 @@
     background: #F8F5EE;
     border: 1px solid var(--border);
     border-left: 4px solid var(--border);
-    border-radius: 8px;
+    border-radius: 0px;
     padding: 12px 14px;
     margin-bottom: 10px;
   }
@@ -257,7 +270,7 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    border-radius: 999px;
+    border-radius: 0px;
     padding: 2px 10px;
   }
   .level-badge.high { background: var(--red-bg); color: var(--red); }
@@ -268,7 +281,7 @@
     font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.03em;
-    border-radius: 999px;
+    border-radius: 0px;
     padding: 3px 12px;
     background: #F3E7DA;
     border: 1px solid #D9C4AC;
@@ -280,7 +293,7 @@
   .answer {
     background: #FBF9F4;
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 0px;
     padding: 12px 14px;
     white-space: pre-wrap;
     word-wrap: break-word;
@@ -300,7 +313,7 @@
   }
   .bubble {
     max-width: 85%;
-    border-radius: 12px;
+    border-radius: 0px;
     padding: 10px 14px;
     font-size: 14.5px;
     white-space: pre-wrap;
@@ -310,18 +323,18 @@
     align-self: flex-end;
     background: var(--ink);
     color: #F5F3EE;
-    border-bottom-right-radius: 4px;
+    border-bottom-right-radius: 0px;
   }
   .bubble.assistant {
     align-self: flex-start;
     background: #FBF9F4;
     border: 1px solid var(--border);
-    border-bottom-left-radius: 4px;
+    border-bottom-left-radius: 0px;
   }
   .tool-block {
     background: #E9E4D8;
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 0px;
     padding: 7px 10px;
     margin: 6px 0;
     font-size: 13px;
@@ -430,6 +443,21 @@
       <p class="selected-line" id="sel-recognize"></p>
       <button id="btn-recognize">Распознать и разобрать</button>
       <div class="result" id="recognize-result"></div>
+    </section>
+
+    <section class="card">
+      <h2>Структура документа</h2>
+      <p class="desc">Оглавление документа: нумерованные разделы и пункты. Работает без модели.</p>
+      <p class="selected-line" id="sel-structure"></p>
+      <button id="btn-structure">Показать структуру</button>
+      <div class="result" id="structure-result"></div>
+    </section>
+
+    <section class="card">
+      <h2>Сверка реквизитов пакета</h2>
+      <p class="desc">Сравнивает ИНН, ОГРН, КПП, БИК и счета между всеми загруженными документами и показывает расхождения.</p>
+      <button id="btn-consistency">Сверить документы</button>
+      <div class="result" id="consistency-result"></div>
     </section>
 
     <section class="card">
@@ -557,6 +585,7 @@ function updateSelectedLines() {
   $("sel-risks").innerHTML = txt;
   $("sel-checklist").innerHTML = txt;
   $("sel-recognize").innerHTML = txt;
+  $("sel-structure").innerHTML = txt;
   $("sel-ask").innerHTML = txt;
   $("btn-fill").disabled = !state.selected;
 }
@@ -806,11 +835,58 @@ function renderRecognize(data, out) {
   out.innerHTML = html;
 }
 
+function renderStructure(data, out) {
+  if (data.ok === false || data.error) {
+    showError(out, data.error || "Не удалось построить структуру.");
+    return;
+  }
+  if (!data.sections || !data.sections.length) {
+    out.innerHTML = '<div class="ok-box">Нумерованные разделы не найдены.</div>';
+    return;
+  }
+  let html = '<div class="answer">Тип: <b>' + esc(data.type || "—") + "</b></div>";
+  html += '<div style="margin-top:10px">';
+  for (const s of data.sections) {
+    html += '<div class="risk-item l-low" style="padding:8px 12px;margin-bottom:6px">' +
+      '<span class="r-punkt">' + esc(s.number) + "</span> " + esc(s.title) + "</div>";
+  }
+  html += "</div>";
+  out.innerHTML = html;
+}
+
+function renderConsistency(data, out) {
+  if (data.ok === false || data.error) {
+    showError(out, data.error || "Не удалось сверить документы.");
+    return;
+  }
+  if (!data.documents || !data.documents.length) {
+    out.innerHTML = '<div class="ok-box">Нет документов для сверки.</div>';
+    return;
+  }
+  let html = '<div class="src-line">Проверено документов: ' + esc(String(data.documents.length)) + "</div>";
+  if (!data.discrepancies || !data.discrepancies.length) {
+    html += '<div class="ok-box">Расхождений в реквизитах не найдено.</div>';
+  } else {
+    for (const d of data.discrepancies) {
+      html += '<div class="risk-item l-high"><div class="r-head"><span class="r-punkt">' +
+        esc(d.field) + "</span></div>";
+      for (const v of d.values) {
+        html += '<div class="r-text"><b>' + esc(v.value) + "</b> — " +
+          v.files.map(esc).join(", ") + "</div>";
+      }
+      html += "</div>";
+    }
+  }
+  out.innerHTML = html;
+}
+
 $("btn-fill").dataset.label = "Заполнить договор";
 $("btn-fill-package").dataset.label = "Заполнить по всему пакету";
 $("btn-risks").dataset.label = "Найти риски";
 $("btn-checklist").dataset.label = "Проверить чек-лист";
 $("btn-recognize").dataset.label = "Распознать и разобрать";
+$("btn-structure").dataset.label = "Показать структуру";
+$("btn-consistency").dataset.label = "Сверить документы";
 $("btn-ask").dataset.label = "Спросить";
 
 $("btn-fill").addEventListener("click", () =>
@@ -834,6 +910,12 @@ $("btn-checklist").addEventListener("click", () => {
 $("btn-recognize").addEventListener("click", () =>
   runScenario($("btn-recognize"), "/api/scenario/recognize", { filename: state.selected },
     renderRecognize, $("recognize-result"), true));
+$("btn-structure").addEventListener("click", () =>
+  runScenario($("btn-structure"), "/api/scenario/structure", { filename: state.selected },
+    renderStructure, $("structure-result"), true));
+$("btn-consistency").addEventListener("click", () =>
+  runScenario($("btn-consistency"), "/api/scenario/consistency", {},
+    renderConsistency, $("consistency-result"), false));
 $("btn-ask").addEventListener("click", () => {
   const q = $("ask-question").value.trim();
   if (!q) { showError($("ask-result"), "Введите вопрос."); return; }

@@ -443,3 +443,67 @@ def check_contract(filename: str, contract_type: str | None = None) -> dict:
         "missing": missing,
         "score": score,
     }
+
+
+def document_structure(filename: str) -> dict:
+    """Оглавление документа: нумерованные разделы и пункты (без модели)."""
+    cfg = load_config()
+    try:
+        text = docs.read_document(docs.safe_workspace_path(cfg.workspace, filename))
+    except Exception as exc:
+        return {"ok": False, "error": f"Не удалось прочитать документ: {exc}"}
+    return {
+        "ok": True,
+        "filename": filename,
+        "type": analysis.classify_document(text),
+        "sections": analysis.document_structure(text),
+    }
+
+
+# Поля, расхождение которых между документами пакета критично для юриста.
+_CONSISTENCY_FIELDS = ("inn", "ogrn", "kpp", "bik", "raschetny_schet", "korr_schet")
+
+
+def check_consistency() -> dict:
+    """Сверка реквизитов между документами рабочей папки (поиск расхождений).
+
+    Полезно юристу: если в договоре ИНН один, а в карточке реквизитов другой —
+    это показывается как расхождение. Детерминированно, без модели.
+    """
+    cfg = load_config()
+    docs_data: list[dict] = []
+    if cfg.workspace.is_dir():
+        for item in sorted(cfg.workspace.iterdir()):
+            if not item.is_file() or item.is_symlink():
+                continue
+            if item.suffix.lower() not in docs.TEXT_EXT | docs._DOCX_PDF_EXT | docs.ODT_EXT:
+                continue
+            try:
+                text = docs.read_document(item)
+            except Exception:
+                continue
+            found = extract.extract_requisites(text)
+            docs_data.append({"filename": item.name, "fields": found})
+
+    discrepancies: list[dict] = []
+    for field in _CONSISTENCY_FIELDS:
+        values: dict[str, list[str]] = {}
+        for d in docs_data:
+            value = d["fields"].get(field)
+            if value:
+                values.setdefault(value, []).append(d["filename"])
+        if len(values) > 1:
+            discrepancies.append(
+                {
+                    "field": field,
+                    "values": [
+                        {"value": value, "files": files}
+                        for value, files in values.items()
+                    ],
+                }
+            )
+    return {
+        "ok": True,
+        "documents": [d["filename"] for d in docs_data],
+        "discrepancies": discrepancies,
+    }
