@@ -213,6 +213,10 @@ def write_risk_report(
     doc = Document()
     doc.add_heading("Отчёт о рисках договора", level=0)
     doc.add_paragraph(f"Источник: {source_name}")
+    doc.add_paragraph(
+        "Внимание: это не юридическое заключение. Проверка и финальное решение "
+        "остаются за юристом."
+    )
     if summary:
         doc.add_paragraph(summary)
     for item in risks:

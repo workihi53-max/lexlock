@@ -405,15 +405,8 @@
 
     <section class="card">
       <h2>Найти риски</h2>
-      <p class="desc">Анализирует договор и возвращает список рисков с уровнями и рекомендациями.</p>
+      <p class="desc">Проверяет договор по явным опасным условиям (автопролонгация, односторонний отказ, неустойка, штраф, подсудность) и показывает их список.</p>
       <p class="selected-line" id="sel-risks"></p>
-      <label for="risk-side">Чьи интересы проверяем?</label>
-      <select id="risk-side">
-        <option value="neutral">Обе стороны — общий анализ</option>
-        <option value="customer">Я заказчик</option>
-        <option value="contractor">Я исполнитель</option>
-      </select>
-      <p class="desc">Риск для вашей стороны не обязательно означает нарушение закона.</p>
       <button id="btn-risks">Найти риски</button>
       <div class="result" id="risks-result"></div>
     </section>
@@ -716,8 +709,7 @@ function renderRisks(data, out, filename = state.selected) {
     return;
   }
   const side = data.side || "neutral";
-  const labels = { neutral: "Обе стороны", customer: "Заказчик", contractor: "Исполнитель" };
-  let html = '<div class="notice">Позиция анализа: ' + esc(labels[side] || side) + '</div>';
+  let html = "";
   if (data.fallback) {
     html += '<div class="notice">Модель недоступна — показана общая эвристическая проверка без учёта выбранной стороны.</div>';
   }
@@ -897,7 +889,7 @@ $("btn-fill-package").addEventListener("click", () =>
     renderFill, $("fill-result"), false));
 $("btn-risks").addEventListener("click", () => {
   const filename = state.selected;
-  runScenario($("btn-risks"), "/api/scenario/risks", { filename, side: $("risk-side").value },
+  runScenario($("btn-risks"), "/api/scenario/risks", { filename, side: "neutral" },
     (data, out) => renderRisks(data, out, filename), $("risks-result"), true);
 });
 $("btn-checklist").addEventListener("click", () => {
