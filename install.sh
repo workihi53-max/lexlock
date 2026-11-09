@@ -247,7 +247,14 @@ DESK
     if [ -f "$ROOT/packaging/linux/lexlock.png" ]; then
         cp "$ROOT/packaging/linux/lexlock.png" "$ICONS/lexlock.png"
     fi
-    command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$APPS" 2>/dev/null || true
+    # Обновляем кэш меню приложений: KDE ждёт kbuildsycoca, GNOME — update-desktop-database.
+    if command -v kbuildsycoca6 >/dev/null 2>&1; then
+        kbuildsycoca6 >/dev/null 2>&1 || true
+    elif command -v kbuildsycoca5 >/dev/null 2>&1; then
+        kbuildsycoca5 >/dev/null 2>&1 || true
+    elif command -v update-desktop-database >/dev/null 2>&1; then
+        update-desktop-database "$APPS" >/dev/null 2>&1 || true
+    fi
     echo "    Ярлык добавлен в меню приложений."
 fi
 

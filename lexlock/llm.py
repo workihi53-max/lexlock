@@ -141,6 +141,8 @@ class LLM:
             "model": self.config.model,
             "messages": messages,
             "stream": False,
+            # Держим модель в памяти между запросами — иначе каждый раз ждём загрузку.
+            "keep_alive": "30m",
         }
         if tools:
             payload["tools"] = tools
@@ -179,7 +181,8 @@ class LLM:
         return ChatResult(content=content, tool_calls=tool_calls)
 
     def stream(self, messages: list[dict]) -> Iterator[str]:
-        payload = {"model": self.config.model, "messages": messages, "stream": True}
+        payload = {"model": self.config.model, "messages": messages, "stream": True,
+                   "keep_alive": "30m"}
         try:
             with self._client() as client:
                 with client.stream("POST", "/api/chat", json=payload) as resp:

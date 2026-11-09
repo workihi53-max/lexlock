@@ -90,7 +90,13 @@ DESK
     if [ -f "$HERE/lexlock.png" ]; then
         cp "$HERE/lexlock.png" "$icons/lexlock.png" 2>/dev/null || true
     fi
-    command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$apps" 2>/dev/null || true
+    if command -v kbuildsycoca6 >/dev/null 2>&1; then
+        kbuildsycoca6 >/dev/null 2>&1 || true
+    elif command -v kbuildsycoca5 >/dev/null 2>&1; then
+        kbuildsycoca5 >/dev/null 2>&1 || true
+    elif command -v update-desktop-database >/dev/null 2>&1; then
+        update-desktop-database "$apps" >/dev/null 2>&1 || true
+    fi
 }
 
 refresh_code() {
