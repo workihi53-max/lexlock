@@ -3,7 +3,7 @@
 ; Требуется установленный Inno Setup (на CI: choco install innosetup).
 
 #define MyAppName "ЛексЛок"
-#define MyAppVersion "0.3.3"
+#define MyAppVersion "0.3.4"
 #define MyAppPublisher "Legal AI Vault"
 
 [Setup]
