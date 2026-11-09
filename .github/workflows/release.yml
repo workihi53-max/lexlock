@@ -1,8 +1,8 @@
 name: Release
 
+# Сборка установщиков запускается только вручную (кнопка «Run workflow»),
+# чтобы на GitHub не появлялись непроверенные бинарники автоматически.
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
