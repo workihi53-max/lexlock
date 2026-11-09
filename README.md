@@ -21,6 +21,15 @@
 
 ![Интерфейс ЛексЛока](docs/assets/lexlock-ui.png)
 
+## Офлайн-пакеты (рекомендуется при плохом интернете)
+
+Самодостаточные сборки: внутри Python, Ollama и модель, при установке ничего не качается.
+Собираются `scripts/build_offline.sh <windows|linux|macos>` или workflow «Offline bundles».
+
+- **Windows:** `LexLock-*-win-offline.zip` — распаковать, запустить «Запустить ЛексЛок.bat».
+- **Linux:** `LexLock-*-linux-offline.AppImage` — `chmod +x` и запустить (без FUSE: `--appimage-extract-and-run`).
+- **macOS:** `LexLock-*-mac-*-offline.dmg` — перетащить в «Программы», первый раз «Открыть» правым кликом.
+
 ## Зачем это нужно
 
 Юристу нельзя отправлять документы в обычные онлайн-сервисы (ChatGPT и подобные), потому

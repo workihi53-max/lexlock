@@ -1,0 +1,38 @@
+name: Offline bundles
+
+# Самодостаточные пакеты (Python + Ollama + модель внутри). Запуск вручную.
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Модель Ollama"
+        default: "qwen2.5:3b"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,    target: linux }
+          - { os: ubuntu-latest,    target: windows }
+          - { os: macos-latest,     target: macos }
+          - { os: macos-15-intel,   target: macos }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Установить uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Установить zstd (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y zstd unzip
+      - name: Собрать пакет
+        run: bash scripts/build_offline.sh ${{ matrix.target }} "${{ inputs.model }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lexlock-${{ matrix.target }}-${{ matrix.os }}
+          path: |
+            dist/*-offline.zip
+            dist/*-offline.AppImage
+            dist/*-offline.dmg
+          compression-level: 0
