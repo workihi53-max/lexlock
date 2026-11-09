@@ -33,7 +33,7 @@ Copy-Item (Join-Path $src.FullName "*") $Dest -Recurse -Force
 $install = Join-Path $Dest "packaging\windows\install.ps1"
 if (-not (Test-Path $install)) { throw "В архиве нет packaging\windows\install.ps1" }
 $ps = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
-& $ps -ExecutionPolicy Bypass -File $install -TargetRoot $Dest -NoRefresh
+& $ps -ExecutionPolicy Bypass -File $install -NoRefresh
 if ($LASTEXITCODE -ne 0) { throw "Установка компонентов завершилась с кодом $LASTEXITCODE. Подробности: $Dest\install.log" }
 
 # --- 3. Ярлык в меню «Пуск» --------------------------------------------------

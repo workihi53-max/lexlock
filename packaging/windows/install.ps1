@@ -37,15 +37,17 @@ Remove-Item $ReadyFile -ErrorAction SilentlyContinue
 try {
 if ($TargetRoot) {
     # Этап 2: мы — свежий скрипт из временного каталога. Копируем свежий код
-    # в папку установки поверх кода из установщика. Документы (workspace),
-    # окружение (.venv) и журналы не трогаем — их нет в белом списке.
+    # в папку установки поверх кода из установщика.
     Write-Host "Копирую свежий код в папку установки: $Root"
     $srcRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    foreach ($item in @("lexlock", "app", "templates", "samples", "scripts", "packaging", "pyproject.toml", "README.md")) {
-        $src = Join-Path $srcRoot $item
-        if (Test-Path $src) { Copy-Item $src (Join-Path $Root $item) -Recurse -Force }
+    # Защита от самокопирования: если код уже в папке установки, копировать не нужно.
+    if ($srcRoot -ne $Root) {
+        foreach ($item in @("lexlock", "app", "templates", "samples", "scripts", "packaging", "pyproject.toml", "README.md")) {
+            $src = Join-Path $srcRoot $item
+            if (Test-Path $src) { Copy-Item $src (Join-Path $Root $item) -Recurse -Force }
+        }
     }
-} elseif ($env:LEXLOCK_NO_REFRESH -ne "1" -and -not (Test-Path (Join-Path $Root ".git"))) {
+} elseif (-not $NoRefresh -and $env:LEXLOCK_NO_REFRESH -ne "1" -and -not (Test-Path (Join-Path $Root ".git"))) {
     # Этап 1: мы — скрипт из установщика. Подтягиваем свежий код ветки main
     # и перезапускаемся уже из него. Каталог с .git считаем разработческим —
     # его не перезаписываем, чтобы не затереть незакоммиченные правки.
