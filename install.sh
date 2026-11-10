@@ -81,6 +81,92 @@ find_tesseract() {
     return 1
 }
 
+# --- Linux: пароль администратора (sudo) ------------------------------------
+# Ollama и Tesseract ставятся на всю систему, поэтому Linux спросит пароль.
+# Сначала объясняем зачем, потом спрашиваем один раз. Без прав установка не рушится:
+# программа ставится, а недостающее можно поставить вручную (подсказка в сообщении).
+SUDO_STATE=""
+as_root() {
+    if [ "$(id -u)" -eq 0 ]; then "$@"; else sudo "$@"; fi
+}
+ensure_sudo() {
+    [ "$OS" = "Linux" ] || return 0
+    [ "$(id -u)" -eq 0 ] && return 0
+    [ "$SUDO_STATE" = ok ] && return 0
+    [ "$SUDO_STATE" = no ] && return 1
+    echo
+    if ! command -v sudo >/dev/null 2>&1; then
+        echo "    Нужны права администратора, чтобы поставить: $1." >&2
+        echo "    В системе нет команды sudo. Попросите администратора поставить это или" >&2
+        echo "    выполните установку от имени root." >&2
+        SUDO_STATE=no; return 1
+    fi
+    echo "==> Нужен пароль администратора: $1"
+    echo "    Сейчас система спросит пароль вашей учётной записи — тот, которым вы входите"
+    echo "    в компьютер. Пароль при вводе НЕ показывается (ни точек, ни звёздочек): это нормально."
+    echo "    Введите его вслепую и нажмите Enter."
+    if sudo -v; then
+        SUDO_STATE=ok; return 0
+    fi
+    echo "    Пароль не подошёл, либо у вашей учётной записи нет прав администратора," >&2
+    echo "    либо установка запущена не из терминала (тогда откройте терминал и повторите)." >&2
+    SUDO_STATE=no; return 1
+}
+
+# OCR на Linux: пакет Tesseract с русским языком для своего дистрибутива.
+install_ocr_linux() {
+    local pkgs=""
+    local -a cmd=()
+    if command -v apt-get >/dev/null 2>&1; then
+        pkgs="tesseract-ocr tesseract-ocr-rus"; cmd=(apt-get install -y -qq)
+    elif command -v dnf >/dev/null 2>&1; then
+        pkgs="tesseract tesseract-langpack-rus"; cmd=(dnf install -y)
+    elif command -v pacman >/dev/null 2>&1; then
+        pkgs="tesseract tesseract-data-rus"; cmd=(pacman -S --noconfirm --needed)
+    elif command -v zypper >/dev/null 2>&1; then
+        pkgs="tesseract-ocr tesseract-ocr-traineddata-russian"; cmd=(zypper --non-interactive install)
+    else
+        echo "    OCR: не знаю пакетный менеджер. Поставьте Tesseract с русским языком вручную." >&2
+        return 0
+    fi
+    if ! ensure_sudo "чтение сканов (пакеты: $pkgs)"; then
+        echo "    OCR пропущен. Позже можно поставить: sudo ${cmd[*]} $pkgs" >&2
+        return 0
+    fi
+    echo "==> Ставлю OCR: $pkgs"
+    [ "${cmd[0]}" = apt-get ] && { as_root apt-get update -qq || true; }
+    # shellcheck disable=SC2086
+    as_root "${cmd[@]}" $pkgs || \
+        echo "    Предупреждение: не удалось поставить Tesseract. Остальное работает." >&2
+}
+
+# OCR на macOS без Homebrew и без прав администратора: Tesseract из conda-forge
+# через micromamba в ~/.local/ocr + русские данные. Приложение ищет его там само.
+install_ocr_mac_local() {
+    local plat prefix tmp
+    case "$(uname -m)" in
+        arm64) plat="osx-arm64" ;;
+        x86_64) plat="osx-64" ;;
+        *) return 1 ;;
+    esac
+    prefix="${LEXLOCK_OCR_DIR:-$HOME/.local/ocr}"
+    tmp="$(mktemp -d)"
+    echo "==> Ставлю OCR без Homebrew (около 150 МБ, права администратора не нужны)"
+    curl -fL --retry 10 --retry-all-errors --retry-delay 3 --connect-timeout 20 -C - \
+        -o "$tmp/mm.tar.bz2" "https://micro.mamba.pm/api/micromamba/$plat/latest" \
+        && tar -xjf "$tmp/mm.tar.bz2" -C "$tmp" bin/micromamba \
+        && "$tmp/bin/micromamba" create -y -q -p "$prefix" -c conda-forge tesseract \
+        && mkdir -p "$prefix/share/tessdata" \
+        && curl -fL --retry 10 --retry-all-errors --retry-delay 3 --connect-timeout 20 -C - \
+            -o "$prefix/share/tessdata/rus.traineddata" \
+            "https://github.com/tesseract-ocr/tessdata_fast/raw/main/rus.traineddata"
+    local rc=$?
+    rm -rf "$tmp"
+    # Не оставляем полуготовую установку: иначе следующий запуск решит, что OCR уже есть.
+    [ "$rc" -eq 0 ] || rm -rf "$prefix"
+    return $rc
+}
+
 # --- uv: ставим автоматически, если нет -------------------------------------
 echo "==> Проверка окружения ($OS)"
 add_local_paths
@@ -127,12 +213,15 @@ else
             rm -f "$TMPZIP"
         fi
     else
-        # Linux: официальный скрипт установки.
-        if command -v curl >/dev/null 2>&1; then
+        # Linux: официальный скрипт установки. Он сам вызывает sudo, поэтому
+        # сначала объясняем, зачем нужен пароль.
+        if ! command -v curl >/dev/null 2>&1; then
+            echo "    Предупреждение: для установки Ollama нужен curl." >&2
+        elif ensure_sudo "программа Ollama (она запускает модель на вашем компьютере)"; then
             curl -fsSL https://ollama.com/install.sh | sh || \
                 echo "    Предупреждение: установка Ollama завершилась с ошибкой." >&2
         else
-            echo "    Предупреждение: для установки Ollama нужен curl." >&2
+            echo "    Ollama автоматически не поставлена. Поставьте вручную: https://ollama.com/download" >&2
         fi
     fi
     add_local_paths
@@ -161,14 +250,18 @@ fi
 if [ "$NO_OCR" -eq 0 ]; then
     if command -v tesseract >/dev/null 2>&1 || find_tesseract >/dev/null 2>&1; then
         echo "    OCR: Tesseract найден"
-    elif [ "$OS" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
-        echo "==> Ставлю OCR: tesseract + русский (brew)"
-        brew install tesseract tesseract-lang || \
-            echo "    Предупреждение: не удалось поставить Tesseract через brew." >&2
-    elif [ "$OS" = "Linux" ] && command -v apt-get >/dev/null 2>&1; then
-        echo "==> Ставлю OCR: tesseract-ocr + русский (apt)"
-        sudo apt-get update -qq && sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-rus || \
-            echo "    Предупреждение: не удалось поставить Tesseract." >&2
+    elif [ "$OS" = "Darwin" ]; then
+        if command -v brew >/dev/null 2>&1; then
+            echo "==> Ставлю OCR: tesseract + русский (brew)"
+            brew install tesseract tesseract-lang || \
+                echo "    Предупреждение: не удалось поставить Tesseract через brew." >&2
+        fi
+        if ! find_tesseract >/dev/null 2>&1; then
+            install_ocr_mac_local || \
+                echo "    Предупреждение: OCR не поставился. Основные сценарии работают, сканы читаться не будут." >&2
+        fi
+    elif [ "$OS" = "Linux" ]; then
+        install_ocr_linux
     else
         echo "    OCR: Tesseract не найден. Установите вручную (см. packaging/README.md)." >&2
     fi

@@ -7,15 +7,27 @@ import pytest
 from lexlock import docs, ocr
 
 
-def test_available_false_when_missing(monkeypatch):
+def test_available_false_when_missing(monkeypatch, tmp_path):
     monkeypatch.setattr(ocr.shutil, "which", lambda name: None)
+    monkeypatch.setattr(ocr, "LOCAL_OCR_DIR", tmp_path)
     assert ocr.available() is False
 
 
-def test_ocr_image_without_tesseract_raises(monkeypatch):
+def test_ocr_image_without_tesseract_raises(monkeypatch, tmp_path):
     monkeypatch.setattr(ocr.shutil, "which", lambda name: None)
+    monkeypatch.setattr(ocr, "LOCAL_OCR_DIR", tmp_path)
     with pytest.raises(RuntimeError):
         ocr.ocr_image("scan.png")
+
+
+def test_finds_local_tesseract_outside_path(monkeypatch, tmp_path):
+    (tmp_path / "bin").mkdir()
+    exe = tmp_path / "bin" / "tesseract"
+    exe.write_text("#!/bin/sh\n")
+    monkeypatch.setattr(ocr.shutil, "which", lambda name: None)
+    monkeypatch.setattr(ocr, "LOCAL_OCR_DIR", tmp_path)
+    assert ocr.tesseract_path() == str(exe)
+    assert ocr.available() is True
 
 
 def test_needs_ocr():

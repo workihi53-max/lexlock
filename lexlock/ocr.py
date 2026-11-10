@@ -18,8 +18,16 @@ DEFAULT_LANG = "rus+eng"
 _MIN_TEXT_CHARS = 20
 
 
+# Куда install.sh на macOS без Homebrew ставит Tesseract (micromamba, без прав админа).
+LOCAL_OCR_DIR = Path.home() / ".local" / "ocr"
+
+
 def tesseract_path() -> str | None:
-    return shutil.which("tesseract")
+    found = shutil.which("tesseract")
+    if found:
+        return found
+    local = LOCAL_OCR_DIR / "bin" / "tesseract"
+    return str(local) if local.is_file() else None
 
 
 def available() -> bool:
