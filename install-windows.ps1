@@ -26,8 +26,15 @@ $curl = Join-Path $env:SystemRoot "System32\curl.exe"
 $ok = $false
 for ($i = 1; $i -le 15 -and -not $ok; $i++) {
     if (Test-Path $curl) {
-        & $curl -L -f -C - --connect-timeout 20 -o $zip $Url
-        $ok = ($LASTEXITCODE -eq 0)
+        # Windows PowerShell 5.1 считает вывод native-команды в stderr ошибкой, а curl
+        # пишет туда прогресс. Поэтому на время вызова Stop отключаем, успех - по коду выхода.
+        $prevEap = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        & $curl -L -f -C - --progress-bar --connect-timeout 20 -o $zip $Url 2>&1 | ForEach-Object { if ($_ -is [string]) { Write-Host -NoNewline $_ } }
+        $code = $LASTEXITCODE
+        $ErrorActionPreference = $prevEap
+        Write-Host ""
+        $ok = ($code -eq 0)
     } else {
         try { Invoke-WebRequest -UseBasicParsing $Url -OutFile $zip; $ok = $true } catch { }
     }
