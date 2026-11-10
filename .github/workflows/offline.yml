@@ -93,6 +93,7 @@ jobs:
       - name: Опубликовать релиз
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           ls -lh assets
           [ -n "$(ls assets)" ] || { echo "Нет файлов для релиза"; exit 1; }
@@ -108,5 +109,12 @@ jobs:
           Внутри Python, Ollama и модель. Файлы не подписаны — система может предупредить при первом запуске.
           TXT
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
-            && gh release upload "$GITHUB_REF_NAME" assets/* --clobber \
-            || gh release create "$GITHUB_REF_NAME" assets/* --title "ЛексЛок ${GITHUB_REF_NAME#v}" --notes-file notes.md
+            || gh release create "$GITHUB_REF_NAME" --title "ЛексЛок ${GITHUB_REF_NAME#v}" --notes-file notes.md
+          for f in assets/*; do
+            ok=0
+            for i in 1 2 3; do
+              gh release upload "$GITHUB_REF_NAME" "$f" --clobber && { ok=1; break; }
+              echo "Попытка $i для $f не удалась"; sleep 20
+            done
+            [ "$ok" = 1 ] || { echo "Не удалось загрузить $f"; exit 1; }
+          done
