@@ -6,6 +6,8 @@
 # создаёт ярлык «ЛексЛок» в меню «Пуск» и запускает приложение. Повторный запуск
 # не качает уже установленное.
 $ErrorActionPreference = "Stop"
+# Кодировка консоли: иначе русский вывод дочернего powershell.exe читается как «кракозябры».
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 # Windows PowerShell 5.1: для загрузок нужен TLS 1.2.
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
@@ -52,8 +54,12 @@ Copy-Item (Join-Path $src.FullName "*") $Dest -Recurse -Force
 $install = Join-Path $Dest "packaging\windows\install.ps1"
 if (-not (Test-Path $install)) { throw "В архиве нет packaging\windows\install.ps1" }
 $ps = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
-& $ps -ExecutionPolicy Bypass -File $install -NoRefresh
-if ($LASTEXITCODE -ne 0) { throw "Установка компонентов завершилась с кодом $LASTEXITCODE. Подробности: $Dest\install.log" }
+# stderr дочернего процесса (прогресс загрузок) не должен становиться ошибкой PowerShell.
+$ErrorActionPreference = "Continue"
+& $ps -ExecutionPolicy Bypass -File $install -NoRefresh 2>&1 | ForEach-Object { Write-Host ("$_") }
+$code = $LASTEXITCODE
+$ErrorActionPreference = "Stop"
+if ($code -ne 0) { throw "Установка компонентов завершилась с кодом $code. Подробности: $Dest\install.log" }
 
 # --- 3. Ярлык в меню «Пуск» --------------------------------------------------
 $launcher = Join-Path $Dest "packaging\windows\run.vbs"
