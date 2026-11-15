@@ -271,6 +271,7 @@ LEXLOCK_WORKSPACE="$LEXLOCK_WORKSPACE" .venv/bin/python -c \
 
 ## Журнал изменений (для агентов и контрибьюторов)
 
+- 2026-11-15 — ux(installers): вводный баннер (что будет, ~2-3 ГБ один раз, 10-30 минут, окно не закрывать, при обрыве запустить снова) в `install-windows.ps1` и `install.sh`; понятное «что делать» при ошибке (try/catch в Windows, trap EXIT в install.sh, тексты bootstrap.sh); финальные сообщения с адресом и способом запуска. Проверено: bash -n. НЕ проверено на Windows.
 - 2026-11-15 — feat(installers): общий процент установки. `install.sh` и Windows `install.ps1` печатают «[ NN%]» по этапам (2→100, модель 55/60→93); лаунчер macOS показывает проценты уведомлением, Linux AppRun - окном zenity --progress (парсят «[ NN%]» из журнала). Проценты по этапам, не по байтам. Inno Setup (мастер) без процентов: установка там скрыта. Проверено: bash -n; НЕ проверено вживую на Windows/macOS/Linux GUI.
 - 2026-11-15 — fix(windows): после правки stderr установка «зависала» на шаге 2/6: `curl -sS` и пайп `2>&1` скрывали прогресс 1,8 ГБ загрузки Ollama. Загрузки (curl, ollama pull) и дочерний powershell теперь через `Invoke-Live`/Start-Process -NoNewWindow: прогресс виден в консоли, stderr не парсится. НЕ проверено на Windows.
 - 2026-11-15 — remove(offline-bundles): удалены офлайн-сборки (`scripts/build_offline.sh`, `offline.yml`, `packaging/windows/offline`); остаются установка скриптами и «тонкие» установщики. Доки обновлены.
