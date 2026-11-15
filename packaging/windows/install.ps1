@@ -66,8 +66,8 @@ if ($TargetRoot) {
         if (-not (Test-Path $freshScript)) { throw "в архиве нет packaging/windows/install.ps1" }
         Write-Host "    Свежий код получен, продолжаю установку из него..."
         $ps = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
-        & $ps -ExecutionPolicy Bypass -File $freshScript -TargetRoot $Root -NoRefresh
-        exit $LASTEXITCODE
+        $code = Invoke-Native $ps @("-ExecutionPolicy", "Bypass", "-File", $freshScript, "-TargetRoot", $Root, "-NoRefresh")
+        exit $code
     } catch {
         Write-Warning "Не удалось подтянуть свежий код ($_). Ставлю код из установщика."
     }
@@ -80,7 +80,8 @@ Write-Host ""
 # --- Шаг 1/6: менеджер пакетов uv (ставится в профиль пользователя) ---
 if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
     Write-Host "[1/6] Ставлю менеджер uv (нужен для Python-окружения)..."
-    Invoke-RestMethod https://astral.sh/uv/install.ps1 | Invoke-Expression
+    $prevEap = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+    try { Invoke-RestMethod https://astral.sh/uv/install.ps1 | Invoke-Expression } finally { $ErrorActionPreference = $prevEap }
     if (-not (Get-Command uv -ErrorAction SilentlyContinue)) { throw "Не удалось установить uv" }
 } else {
     Write-Host "[1/6] uv уже есть — пропускаю."
@@ -145,8 +146,8 @@ if ($alreadyHave) {
     # ollama pull докачивает с места обрыва, поэтому на плохой связи повторяем.
     $pulled = $false
     for ($i = 1; $i -le 30 -and -not $pulled; $i++) {
-        & ollama pull $model
-        if ($LASTEXITCODE -eq 0) { $pulled = $true } else {
+        $code = Invoke-Native "ollama" @("pull", $model)
+        if ($code -eq 0) { $pulled = $true } else {
             Write-Host "    Связь оборвалась, докачиваю (попытка $i из 30)..."
             Start-Sleep -Seconds 5
         }
