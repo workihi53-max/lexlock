@@ -28,13 +28,9 @@ $curl = Join-Path $env:SystemRoot "System32\curl.exe"
 $ok = $false
 for ($i = 1; $i -le 15 -and -not $ok; $i++) {
     if (Test-Path $curl) {
-        # Windows PowerShell 5.1 считает вывод native-команды в stderr ошибкой, а curl
-        # пишет туда прогресс. Поэтому на время вызова Stop отключаем, успех - по коду выхода.
-        $prevEap = $ErrorActionPreference
-        $ErrorActionPreference = "Continue"
-        & $curl -L -f -C - --progress-bar --connect-timeout 20 -o $zip $Url 2>&1 | ForEach-Object { if ($_ -is [string]) { Write-Host -NoNewline $_ } }
-        $code = $LASTEXITCODE
-        $ErrorActionPreference = $prevEap
+        # Запуск через Start-Process: прогресс curl виден в консоли сразу и не считается ошибкой PowerShell.
+        $proc = Start-Process -FilePath $curl -ArgumentList @("-L", "-f", "-C", "-", "--progress-bar", "--connect-timeout", "20", "-o", "`"$zip`"", "`"$Url`"") -NoNewWindow -Wait -PassThru
+        $code = $proc.ExitCode
         Write-Host ""
         $ok = ($code -eq 0)
     } else {
@@ -54,11 +50,9 @@ Copy-Item (Join-Path $src.FullName "*") $Dest -Recurse -Force
 $install = Join-Path $Dest "packaging\windows\install.ps1"
 if (-not (Test-Path $install)) { throw "В архиве нет packaging\windows\install.ps1" }
 $ps = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
-# stderr дочернего процесса (прогресс загрузок) не должен становиться ошибкой PowerShell.
-$ErrorActionPreference = "Continue"
-& $ps -ExecutionPolicy Bypass -File $install -NoRefresh 2>&1 | ForEach-Object { Write-Host ("$_") }
-$code = $LASTEXITCODE
-$ErrorActionPreference = "Stop"
+# Дочерний процесс пишет прямо в консоль: видны полосы загрузки, ничего не "зависает" молча.
+$proc = Start-Process -FilePath $ps -ArgumentList @("-ExecutionPolicy", "Bypass", "-File", "`"$install`"", "-NoRefresh") -NoNewWindow -Wait -PassThru
+$code = $proc.ExitCode
 if ($code -ne 0) { throw "Установка компонентов завершилась с кодом $code. Подробности: $Dest\install.log" }
 
 # --- 3. Ярлык в меню «Пуск» --------------------------------------------------
