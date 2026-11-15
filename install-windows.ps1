@@ -20,7 +20,7 @@ Write-Host "==> ЛексЛок: установка в $Dest"
 New-Item -ItemType Directory -Force -Path $Dest | Out-Null
 
 # --- 1. Свежий код из main ---------------------------------------------------
-Write-Host "==> Скачиваю свежий код ($Branch)"
+Write-Host "==> [  0%] Скачиваю свежий код ($Branch)"
 $zip = Join-Path $env:TEMP "lexlock-$Branch.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }
 # Загрузка с докачкой и повторами (слабый интернет).
@@ -77,5 +77,5 @@ if (Test-Path $launcher) {
 }
 
 Write-Host ""
-Write-Host "Готово. ЛексЛок запущен и открылся в браузере."
+Write-Host "[100%] Готово. ЛексЛок запущен и открылся в браузере."
 Write-Host "Ярлык «ЛексЛок» — в меню «Пуск». Документы кладите в: $(Join-Path $Dest 'workspace')"

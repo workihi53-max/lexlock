@@ -53,7 +53,7 @@ if ($TargetRoot) {
     # его не перезаписываем, чтобы не затереть незакоммиченные правки.
     $codeRef = $env:LEXLOCK_CODE_REF
     if (-not $codeRef) { $codeRef = "main" }
-    Write-Host "[0/6] Подтягиваю свежий код (ветка $codeRef)..."
+    Write-Host "[  2%] Подтягиваю свежий код (ветка $codeRef)..."
     try {
         $zip = Join-Path $env:TEMP "lexlock-code.zip"
         if (Test-Path $zip) { Remove-Item $zip -Force }
@@ -73,24 +73,25 @@ if ($TargetRoot) {
     }
 }
 Write-Host "=== ЛексЛок: установка компонентов ==="
+function Show-Progress([int]$Percent, [string]$Text) { Write-Host ("[{0,3}%] {1}" -f $Percent, $Text) }
 Write-Host "Папка программы: $Root"
 Write-Host "Документы будут здесь: $(Join-Path $Root 'workspace')"
 Write-Host ""
 
 # --- Шаг 1/6: менеджер пакетов uv (ставится в профиль пользователя) ---
 if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
-    Write-Host "[1/6] Ставлю менеджер uv (нужен для Python-окружения)..."
+    Show-Progress 5 "Шаг 1 из 6: ставлю менеджер uv (нужен для Python-окружения)..."
     $prevEap = $ErrorActionPreference; $ErrorActionPreference = "Continue"
     try { Invoke-RestMethod https://astral.sh/uv/install.ps1 | Invoke-Expression } finally { $ErrorActionPreference = $prevEap }
     if (-not (Get-Command uv -ErrorAction SilentlyContinue)) { throw "Не удалось установить uv" }
 } else {
-    Write-Host "[1/6] uv уже есть — пропускаю."
+    Show-Progress 5 "Шаг 1 из 6: uv уже есть - пропускаю."
 }
 $env:Path = "$env:USERPROFILE\.local\bin;$env:USERPROFILE\.cargo\bin;$env:Path"
 
 # --- Шаг 2/6: Ollama (запуск модели локально, ~500 МБ) ---
 if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
-    Write-Host "[2/6] Ставлю Ollama (программа для локального запуска модели, ~1,8 ГБ, это долго - видно полоску загрузки)..."
+    Show-Progress 10 "Шаг 2 из 6: ставлю Ollama (~1,8 ГБ, это долго - видна полоса загрузки; процент пойдёт дальше после неё)..."
     # Прямая загрузка с докачкой надёжнее winget на слабом интернете.
     if ($true) {
         $exe = Join-Path $env:TEMP "OllamaSetup.exe"
@@ -101,20 +102,20 @@ if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
         if ($setup.ExitCode -notin @(0, 3010)) { throw "Установка Ollama завершилась с кодом $($setup.ExitCode)" }
     }
 } else {
-    Write-Host "[2/6] Ollama уже есть — пропускаю."
+    Show-Progress 10 "Шаг 2 из 6: Ollama уже есть - пропускаю."
 }
 $env:Path = "$env:LOCALAPPDATA\Programs\Ollama;$env:ProgramFiles\Ollama;$env:Path"
 
 if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) { throw "Ollama не найдена после установки" }
 
 # --- Шаг 3/6: Python-окружение только для ЛексЛока (.venv в папке программы) ---
-Write-Host "[3/6] Создаю Python-окружение в папке программы (.venv)..."
+Show-Progress 35 "Шаг 3 из 6: создаю Python-окружение в папке программы (.venv)..."
 if (-not (Test-Path ".venv\Scripts\python.exe")) { Invoke-Checked uv @("venv", "--python", "3.12", ".venv") }
 Invoke-Checked uv @("pip", "install", "--python", ".venv\Scripts\python.exe", "-e", ".[ocr,tray]")
 
 # --- Шаг 4/6: Tesseract для чтения сканов (необязательно) ---
 if (-not (Get-Command tesseract -ErrorAction SilentlyContinue)) {
-    Write-Host "[4/6] Ставлю Tesseract для чтения сканов (необязательно)..."
+    Show-Progress 50 "Шаг 4 из 6: ставлю Tesseract для чтения сканов (необязательно)..."
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         try {
             Invoke-Checked winget @("install", "--id", "UB-Mannheim.TesseractOCR", "-e", "--silent", "--disable-interactivity", "--accept-source-agreements", "--accept-package-agreements")
@@ -128,7 +129,7 @@ if (-not (Get-Command tesseract -ErrorAction SilentlyContinue)) {
 $ramGb = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 1)
 $model = if ($ramGb -ge 10) { "qwen2.5:3b" } else { "qwen2.5:1.5b" }
 [System.IO.File]::WriteAllText("$Root\.lexlock_model", $model)
-Write-Host "[5/6] Памяти: $ramGb ГБ — качаю модель $model (~1-2 ГБ, это дольше всего)..."
+Show-Progress 60 "Шаг 5 из 6: памяти $ramGb ГБ - качаю модель $model (~1-2 ГБ, это дольше всего: с 60% до 92%)..."
 
 # --- Ollama serve + модель ---
 try {
@@ -156,13 +157,14 @@ if ($alreadyHave) {
 }
 
 # --- Шаг 6/6: шаблон договора и примеры ---
-Write-Host "[6/6] Готовлю шаблон договора и примеры..."
+Show-Progress 93 "Шаг 6 из 6: готовлю шаблон договора и примеры..."
 Invoke-Checked ".venv\Scripts\python.exe" @("scripts\make_template.py")
 Invoke-Checked ".venv\Scripts\python.exe" @("scripts\demo_data.py")
 
 Set-Content -Path $ReadyFile -Value "ok" -Encoding ASCII
 Write-Host ""
-Write-Host "Готово. Программа здесь: $Root"
+Show-Progress 100 "Готово."
+Write-Host "Программа здесь: $Root"
 Write-Host "Документы кладите сюда: $(Join-Path $Root 'workspace')"
 Write-Host "Запуск — ярлык «ЛексЛок» в меню Пуск (откроется в браузере)."
 } catch {

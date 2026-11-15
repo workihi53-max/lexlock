@@ -22,6 +22,10 @@ SKIP_MODEL=0
 NO_OCR=0
 OLLAMA_BIN=""
 
+# Общий прогресс установки: строка вида "==> [ 45%] текст". Её же разбирают лаунчеры
+# (macOS/Linux), чтобы показывать проценты в окне. Проценты - по этапам, не по байтам.
+progress() { echo "==> [ $1%] $2"; }
+
 usage() {
     echo "Использование: ./install.sh [--skip-model] [--no-ocr] [--model ИМЯ] [-h]"
     echo "  --skip-model   не скачивать модель Ollama"
@@ -168,7 +172,7 @@ install_ocr_mac_local() {
 }
 
 # --- uv: ставим автоматически, если нет -------------------------------------
-echo "==> Проверка окружения ($OS)"
+progress 2 "Проверка окружения ($OS)"
 add_local_paths
 if ! command -v uv >/dev/null 2>&1; then
     echo "==> uv не найден — устанавливаю (https://astral.sh/uv)"
@@ -188,6 +192,7 @@ if ! command -v uv >/dev/null 2>&1; then
     exit 1
 fi
 echo "    uv: $(command -v uv)"
+progress 8 "uv готов. Дальше: Ollama (программа для запуска модели)"
 
 # --- Ollama: ставим автоматически, если нет --------------------------------
 if find_ollama >/dev/null 2>&1; then
@@ -234,12 +239,12 @@ else
     fi
 fi
 
-echo "==> Создание виртуального окружения (Python 3.12 подтянет сам uv)"
+progress 20 "Создаю Python-окружение (Python 3.12 подтянет сам uv)"
 if [ ! -x "$VENV/bin/python" ]; then
     uv venv --python 3.12 "$VENV"
 fi
 
-echo "==> Установка зависимостей"
+progress 25 "Устанавливаю зависимости"
 if [ "$NO_OCR" -eq 1 ]; then
     uv pip install --python "$VENV/bin/python" -e "$ROOT[tray]"
 else
@@ -248,6 +253,7 @@ fi
 
 # --- OCR: Tesseract + русский язык (по умолчанию) ---------------------------
 if [ "$NO_OCR" -eq 0 ]; then
+    progress 35 "Ставлю распознавание сканов (Tesseract, необязательно)"
     if command -v tesseract >/dev/null 2>&1 || find_tesseract >/dev/null 2>&1; then
         echo "    OCR: Tesseract найден"
     elif [ "$OS" = "Darwin" ]; then
@@ -279,7 +285,7 @@ fi
 printf '%s' "$MODEL" > "$ROOT/.lexlock_model"
 echo "    Модель: $MODEL"
 
-echo "==> Проверка ресурсов (предупреждение не останавливает установку)"
+progress 45 "Проверка ресурсов и подбор модели"
 if ! "$VENV/bin/python" "$ROOT/scripts/check_ram.py" --model "$MODEL"; then
     echo "    Внимание: свободной ОЗУ мало — модель может работать медленно или уйти в своп."
 fi
@@ -290,7 +296,7 @@ elif [ -z "$OLLAMA_BIN" ]; then
     echo "==> Модель не скачана: Ollama не найдена." >&2
     echo "    Установите Ollama и выполните: $OLLAMA_BIN pull $MODEL"
 else
-    echo "==> Проверка Ollama"
+    progress 50 "Запускаю Ollama (дальше самый долгий шаг - загрузка модели)"
     if ! curl -s --max-time 2 http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
         echo "    Запускаю ollama serve в фоне..."
         nohup "$OLLAMA_BIN" serve >/dev/null 2>&1 &
@@ -306,7 +312,7 @@ else
         if "$OLLAMA_BIN" list 2>/dev/null | grep -q "^$MODEL[[:space:]]"; then
             echo "    Модель $MODEL уже установлена — скачивание не нужно."
         else
-            echo "==> Скачивание модели $MODEL (может занять время)"
+            progress 55 "Скачиваю модель $MODEL (~1-2 ГБ, это дольше всего: с 55% до 93%)"
             # На слабом интернете загрузка рвётся; ollama pull докачивает с места обрыва,
             # поэтому просто повторяем, пока не получится.
             PULLED=0
@@ -326,7 +332,7 @@ else
     fi
 fi
 
-echo "==> Генерация шаблона и тестовых данных"
+progress 94 "Готовлю шаблон договора и примеры"
 "$VENV/bin/python" "$ROOT/scripts/make_template.py"
 "$VENV/bin/python" "$ROOT/scripts/demo_data.py"
 
@@ -387,5 +393,6 @@ LAUNCH
 fi
 
 echo
-echo "Готово. Запусти ./run.sh"
+progress 100 "Готово"
+echo "Запусти ./run.sh"
 echo "Если Ollama ставилась впервые — на macOS запустите приложение Ollama один раз."

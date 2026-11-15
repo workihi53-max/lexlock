@@ -131,10 +131,25 @@ if [ ! -x "$TARGET/.venv/bin/python" ]; then
     fi
     cd "$TARGET" || exit 1
     refresh_code >>"$LOG" 2>&1
+    # Окно с процентами (zenity): install.sh пишет в журнал строки "[ NN%]".
+    # Флаг-файл сообщает окну, что установка закончилась (успехом или ошибкой).
+    DONEF="$(mktemp -u)"
+    stop_progress() { touch "$DONEF" 2>/dev/null || true; }
+    if [ "$DIALOG" = zenity ]; then
+        ( last=0; echo 1
+          while [ ! -e "$DONEF" ]; do
+            pct="$(grep -o '\[ *[0-9]*%\]' "$LOG" 2>/dev/null | tail -1 | tr -d '[] %')"
+            [ -n "$pct" ] && [ "$pct" != "$last" ] && { last="$pct"; echo "$pct"; echo "# Установка: готово $pct% (интернет нужен один раз)"; }
+            sleep 2
+          done
+          echo 100 ) | zenity --progress --title="ЛексЛок" --text="Устанавливаю ЛексЛок…" --percentage=1 --no-cancel --auto-close --width=460 2>/dev/null &
+    fi
     if ! ./install.sh >>"$LOG" 2>&1; then
+        stop_progress
         error "Не удалось установить. Проверьте интернет и попробуйте снова.\n\nЖурнал: $LOG"
         exit 1
     fi
+    stop_progress
 fi
 
 install_desktop_entry

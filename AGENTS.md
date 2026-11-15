@@ -271,6 +271,7 @@ LEXLOCK_WORKSPACE="$LEXLOCK_WORKSPACE" .venv/bin/python -c \
 
 ## Журнал изменений (для агентов и контрибьюторов)
 
+- 2026-11-15 — feat(installers): общий процент установки. `install.sh` и Windows `install.ps1` печатают «[ NN%]» по этапам (2→100, модель 55/60→93); лаунчер macOS показывает проценты уведомлением, Linux AppRun - окном zenity --progress (парсят «[ NN%]» из журнала). Проценты по этапам, не по байтам. Inno Setup (мастер) без процентов: установка там скрыта. Проверено: bash -n; НЕ проверено вживую на Windows/macOS/Linux GUI.
 - 2026-11-15 — fix(windows): после правки stderr установка «зависала» на шаге 2/6: `curl -sS` и пайп `2>&1` скрывали прогресс 1,8 ГБ загрузки Ollama. Загрузки (curl, ollama pull) и дочерний powershell теперь через `Invoke-Live`/Start-Process -NoNewWindow: прогресс виден в консоли, stderr не парсится. НЕ проверено на Windows.
 - 2026-11-15 — remove(offline-bundles): удалены офлайн-сборки (`scripts/build_offline.sh`, `offline.yml`, `packaging/windows/offline`); остаются установка скриптами и «тонкие» установщики. Доки обновлены.
 - 2026-11-15 — fix(windows): установка падала на шаге 2/6 с NativeCommandError («** Resuming transfer…» от curl в stderr при `$ErrorActionPreference=Stop`, PowerShell 5.1/ISE). Добавлен `Invoke-Native` (Continue на время вызова, успех по коду выхода) для curl, ollama pull, дочернего powershell, uv; curl с `-sS`. Консоль переведена в UTF-8 (кракозябры в выводе дочернего процесса). НЕ проверено на Windows (pwsh здесь нет).
