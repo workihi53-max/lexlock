@@ -16,11 +16,23 @@ $Branch = "main"
 $Dest   = Join-Path $env:LOCALAPPDATA "LexLock"
 $Url    = "https://github.com/$Repo/archive/refs/heads/$Branch.zip"
 
-Write-Host "==> ЛексЛок: установка в $Dest"
+Write-Host ""
+Write-Host "=============== ЛексЛок: установка ===============" -ForegroundColor Cyan
+Write-Host " Что будет: скачаем программу, поставим Ollama (запуск модели)"
+Write-Host " и языковую модель, подготовим примеры документов."
+Write-Host " Интернет нужен ОДИН раз: около 3-4 ГБ. Потом ЛексЛок работает"
+Write-Host " без сети, документы никуда не уходят."
+Write-Host " Время: от 15 минут до пары часов - зависит от скорости интернета"
+Write-Host " (при 10 Мбит/с около часа). Окно НЕ закрывайте (можно свернуть)."
+Write-Host " Оборвалась связь? Запустите команду ещё раз: скачанное не повторяется."
+Write-Host "===================================================" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "Папка установки: $Dest"
+try {
 New-Item -ItemType Directory -Force -Path $Dest | Out-Null
 
 # --- 1. Свежий код из main ---------------------------------------------------
-Write-Host "==> [  0%] Скачиваю свежий код ($Branch)"
+Write-Host "[  0%] Скачиваю программу ($Branch)..."
 $zip = Join-Path $env:TEMP "lexlock-$Branch.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }
 # Загрузка с докачкой и повторами (слабый интернет).
@@ -79,3 +91,11 @@ if (Test-Path $launcher) {
 Write-Host ""
 Write-Host "[100%] Готово. ЛексЛок запущен и открылся в браузере."
 Write-Host "Ярлык «ЛексЛок» — в меню «Пуск». Документы кладите в: $(Join-Path $Dest 'workspace')"
+} catch {
+    Write-Host ""
+    Write-Host "Установка не завершилась: $_" -ForegroundColor Red
+    Write-Host "Это не страшно, ничего не сломано. Что делать:" -ForegroundColor Yellow
+    Write-Host "  1) проверьте интернет;"
+    Write-Host "  2) запустите ту же команду ещё раз (скачанное не повторится);"
+    Write-Host "  3) если снова не вышло - отправьте разработчику файл: $Dest\install.log"
+}
