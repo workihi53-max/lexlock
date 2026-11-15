@@ -66,7 +66,7 @@ if ($TargetRoot) {
         if (-not (Test-Path $freshScript)) { throw "в архиве нет packaging/windows/install.ps1" }
         Write-Host "    Свежий код получен, продолжаю установку из него..."
         $ps = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
-        $code = Invoke-Native $ps @("-ExecutionPolicy", "Bypass", "-File", $freshScript, "-TargetRoot", $Root, "-NoRefresh")
+        $code = Invoke-Live $ps @("-ExecutionPolicy", "Bypass", "-File", $freshScript, "-TargetRoot", $Root, "-NoRefresh")
         exit $code
     } catch {
         Write-Warning "Не удалось подтянуть свежий код ($_). Ставлю код из установщика."
@@ -90,7 +90,7 @@ $env:Path = "$env:USERPROFILE\.local\bin;$env:USERPROFILE\.cargo\bin;$env:Path"
 
 # --- Шаг 2/6: Ollama (запуск модели локально, ~500 МБ) ---
 if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
-    Write-Host "[2/6] Ставлю Ollama (программа для локального запуска модели)..."
+    Write-Host "[2/6] Ставлю Ollama (программа для локального запуска модели, ~1,8 ГБ, это долго - видно полоску загрузки)..."
     # Прямая загрузка с докачкой надёжнее winget на слабом интернете.
     if ($true) {
         $exe = Join-Path $env:TEMP "OllamaSetup.exe"
@@ -146,7 +146,7 @@ if ($alreadyHave) {
     # ollama pull докачивает с места обрыва, поэтому на плохой связи повторяем.
     $pulled = $false
     for ($i = 1; $i -le 30 -and -not $pulled; $i++) {
-        $code = Invoke-Native "ollama" @("pull", $model)
+        $code = Invoke-Live "ollama" @("pull", $model)
         if ($code -eq 0) { $pulled = $true } else {
             Write-Host "    Связь оборвалась, докачиваю (попытка $i из 30)..."
             Start-Sleep -Seconds 5
